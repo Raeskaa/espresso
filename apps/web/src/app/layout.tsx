@@ -32,9 +32,9 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider>
-      <html lang="en" className="dark">
+      <html lang="en">
         <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background`}
+          className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-white`}
         >
           <TRPCProvider>
             {children}

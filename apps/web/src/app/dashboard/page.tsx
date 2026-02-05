@@ -2,15 +2,9 @@ import Link from "next/link";
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
-  Sparkles, 
   Plus, 
-  CreditCard, 
-  Clock, 
   Image as ImageIcon,
-  Settings,
-  LogOut,
   Loader2
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
@@ -23,34 +17,28 @@ export default async function DashboardPage() {
     redirect("/sign-in");
   }
 
-  // Fetch real data from database
   const credits = await getCredits();
   const generations = await getUserGenerations();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-pink-500 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">Espresso</span>
+      <header className="border-b border-gray-100">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+          <Link href="/dashboard" className="font-semibold text-lg">
+            Espresso
           </Link>
           
           <div className="flex items-center gap-4">
-            {/* Credits Display */}
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
-              <CreditCard className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">{credits} credits</span>
-            </div>
+            <span className="text-sm text-gray-500">
+              {credits} credit{credits !== 1 ? 's' : ''}
+            </span>
             
             <UserButton 
               afterSignOutUrl="/"
               appearance={{
                 elements: {
-                  avatarBox: "w-9 h-9"
+                  avatarBox: "w-8 h-8"
                 }
               }}
             />
@@ -58,130 +46,79 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Welcome Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">
-            Welcome back, {user.firstName || "there"}!
+      <main className="max-w-5xl mx-auto px-6 py-12">
+        {/* Welcome */}
+        <div className="mb-12">
+          <h1 className="text-2xl font-semibold mb-2">
+            Welcome back{user.firstName ? `, ${user.firstName}` : ''}
           </h1>
-          <p className="text-muted-foreground">
-            Ready to enhance some photos?
+          <p className="text-gray-500">
+            Upload a photo to get started.
           </p>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid md:grid-cols-3 gap-6 mb-12">
-          {/* New Generation Card */}
-          <Link href="/generate">
-            <Card className="group cursor-pointer hover:border-primary/50 transition-all duration-300 hover:shadow-xl hover:shadow-primary/10">
-              <CardContent className="p-6">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-pink-500 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                  <Plus className="w-7 h-7 text-white" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">New Generation</h3>
-                <p className="text-muted-foreground text-sm">
-                  Upload a photo and fix eye contact, posture, or lighting
+        {/* New Generation CTA */}
+        <Link href="/generate">
+          <div className="p-8 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors cursor-pointer mb-12">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center">
+                <Plus className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="font-medium">New generation</h2>
+                <p className="text-sm text-gray-500">
+                  Upload a photo and select fixes
                 </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          {/* Credits Card */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="w-14 h-14 rounded-2xl bg-secondary/20 flex items-center justify-center mb-4">
-                <CreditCard className="w-7 h-7 text-secondary" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">{credits} Credits</h3>
-              <p className="text-muted-foreground text-sm mb-4">
-                {credits === 0 ? "You're out of credits" : `${credits} generation${credits === 1 ? '' : 's'} remaining`}
-              </p>
-              <Link href="/pricing">
-                <Button variant="outline" size="sm">Get More</Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          {/* Recent Activity Card */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="w-14 h-14 rounded-2xl bg-accent/20 flex items-center justify-center mb-4">
-                <Clock className="w-7 h-7 text-orange-500" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Recent Activity</h3>
-              <p className="text-muted-foreground text-sm">
-                {generations.length === 0 
-                  ? "No generations yet. Create your first one!"
-                  : `${generations.length} generation${generations.length === 1 ? '' : 's'} this week`
-                }
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </div>
+        </Link>
 
         {/* Generation History */}
         <div>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold">Your Generations</h2>
-            {generations.length > 0 && (
-              <Button variant="ghost" size="sm">View All</Button>
-            )}
-          </div>
+          <h2 className="text-lg font-medium mb-6">Your generations</h2>
 
           {generations.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="py-16 text-center">
-                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                  <ImageIcon className="w-8 h-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">No generations yet</h3>
-                <p className="text-muted-foreground mb-6">
-                  Upload your first photo to see it transformed
-                </p>
-                <Link href="/generate">
-                  <Button>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Generation
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+            <div className="py-16 text-center border border-dashed border-gray-200 rounded-lg">
+              <ImageIcon className="w-8 h-8 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500 mb-4">No generations yet</p>
+              <Link href="/generate">
+                <Button>Create your first</Button>
+              </Link>
+            </div>
           ) : (
-            <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {generations.map((gen) => (
                 <Link href={`/generation/${gen.id}`} key={gen.id}>
-                  <Card className="overflow-hidden hover:border-primary/50 transition-all">
-                    <div className="aspect-square bg-muted relative">
-                      {gen.generatedImageUrls && gen.generatedImageUrls.length > 0 ? (
-                        <img 
-                          src={gen.generatedImageUrls[0]} 
-                          alt="Generation thumbnail"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : gen.status === 'processing' ? (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                        </div>
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <ImageIcon className="w-8 h-8 text-muted-foreground" />
-                        </div>
-                      )}
-                      <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium ${
-                        gen.status === 'completed' ? 'bg-green-500/20 text-green-500' :
-                        gen.status === 'processing' ? 'bg-primary/20 text-primary' :
-                        gen.status === 'failed' ? 'bg-red-500/20 text-red-500' :
-                        'bg-background/80'
-                      }`}>
-                        {gen.status}
+                  <div className="aspect-square rounded-lg border border-gray-200 hover:border-gray-300 transition-colors overflow-hidden relative bg-gray-50">
+                    {gen.generatedImageUrls && gen.generatedImageUrls.length > 0 ? (
+                      <img 
+                        src={gen.generatedImageUrls[0]} 
+                        alt="Generation"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : gen.status === 'processing' ? (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
                       </div>
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <ImageIcon className="w-6 h-6 text-gray-300" />
+                      </div>
+                    )}
+                    
+                    {/* Status badge */}
+                    <div className={`absolute top-2 right-2 px-2 py-0.5 rounded text-xs font-medium ${
+                      gen.status === 'completed' ? 'bg-white text-black' :
+                      gen.status === 'processing' ? 'bg-white text-gray-500' :
+                      'bg-white text-gray-500'
+                    }`}>
+                      {gen.status}
                     </div>
-                    <CardContent className="p-3">
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(gen.createdAt).toLocaleDateString()}
-                      </p>
-                    </CardContent>
-                  </Card>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    {new Date(gen.createdAt).toLocaleDateString()}
+                  </p>
                 </Link>
               ))}
             </div>

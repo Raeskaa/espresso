@@ -4,9 +4,7 @@ import { useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { 
-  Sparkles, 
   Upload, 
   X, 
   Eye, 
@@ -24,37 +22,32 @@ interface FixOption {
   label: string;
   description: string;
   icon: React.ReactNode;
-  color: string;
 }
 
 const fixOptions: FixOption[] = [
   {
     id: "fixEyeContact",
-    label: "Fix Eye Contact",
-    description: "Look directly at the camera",
-    icon: <Eye className="w-6 h-6" />,
-    color: "primary",
+    label: "Eye Contact",
+    description: "Look at the camera",
+    icon: <Eye className="w-5 h-5" />,
   },
   {
     id: "improvePosture",
-    label: "Improve Posture",
-    description: "Confident, upright stance",
-    icon: <Move className="w-6 h-6" />,
-    color: "secondary",
+    label: "Posture",
+    description: "Stand confident",
+    icon: <Move className="w-5 h-5" />,
   },
   {
     id: "adjustAngle",
-    label: "Adjust Angle",
-    description: "Find the most flattering angle",
-    icon: <Camera className="w-6 h-6" />,
-    color: "orange-500",
+    label: "Angle",
+    description: "Flattering perspective",
+    icon: <Camera className="w-5 h-5" />,
   },
   {
     id: "enhanceLighting",
-    label: "Enhance Lighting",
-    description: "Soft, flattering light",
-    icon: <Sun className="w-6 h-6" />,
-    color: "pink-500",
+    label: "Lighting",
+    description: "Soft, natural light",
+    icon: <Sun className="w-5 h-5" />,
   },
 ];
 
@@ -118,7 +111,6 @@ export default function GeneratePage() {
     setIsGenerating(true);
     
     try {
-      // Extract base64 data from data URL
       const base64Data = image.split(',')[1];
       
       const fixes = {
@@ -149,171 +141,139 @@ export default function GeneratePage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-            <span>Back to Dashboard</span>
+      <header className="border-b border-gray-100">
+        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
+          <Link href="/dashboard" className="flex items-center gap-2 text-gray-500 hover:text-black transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-sm">Back</span>
           </Link>
           
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-pink-500 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-          </Link>
+          <span className="font-semibold">New Generation</span>
+          
+          <div className="w-16" /> {/* Spacer for centering */}
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-8">
+      <main className="max-w-xl mx-auto px-6 py-12">
+        {/* Upload Section */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">New Generation</h1>
-          <p className="text-muted-foreground">
-            Upload a photo and select what you want to fix
-          </p>
-        </div>
-
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Upload Section */}
-          <div>
-            <h2 className="text-lg font-semibold mb-4">1. Upload Photo</h2>
-            
-            {!image ? (
-              <div
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                className={`
-                  relative border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer
-                  transition-all duration-200
-                  ${isDragging 
-                    ? "border-primary bg-primary/5" 
-                    : "border-border hover:border-primary/50 hover:bg-muted/50"
-                  }
-                `}
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFileChange(file);
-                  }}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-                
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <Upload className="w-8 h-8 text-primary" />
-                </div>
-                
-                <p className="text-lg font-medium mb-2">
-                  Drop your photo here
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  or click to browse
-                </p>
-                <p className="text-xs text-muted-foreground mt-4">
-                  Supports JPG, PNG, WebP
-                </p>
-              </div>
-            ) : (
-              <div className="relative rounded-2xl overflow-hidden border border-border">
-                <img
-                  src={image}
-                  alt="Uploaded preview"
-                  className="w-full aspect-square object-cover"
-                />
-                <button
-                  onClick={clearImage}
-                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center hover:bg-background transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-                <div className="absolute bottom-0 left-0 right-0 px-4 py-3 bg-gradient-to-t from-black/60 to-transparent">
-                  <p className="text-white text-sm truncate">{fileName}</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Fix Selection */}
-          <div>
-            <h2 className="text-lg font-semibold mb-4">2. Select Fixes</h2>
-            
-            <div className="space-y-3">
-              {fixOptions.map((option) => {
-                const isSelected = selectedFixes.has(option.id);
-                
-                return (
-                  <button
-                    key={option.id}
-                    onClick={() => toggleFix(option.id)}
-                    className={`
-                      w-full p-4 rounded-xl border-2 text-left transition-all duration-200
-                      ${isSelected 
-                        ? "border-primary bg-primary/5" 
-                        : "border-border hover:border-primary/30"
-                      }
-                    `}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`
-                        w-12 h-12 rounded-xl flex items-center justify-center
-                        ${isSelected ? "bg-primary text-white" : "bg-muted text-muted-foreground"}
-                      `}>
-                        {option.icon}
-                      </div>
-                      
-                      <div className="flex-1">
-                        <p className="font-medium">{option.label}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {option.description}
-                        </p>
-                      </div>
-                      
-                      <div className={`
-                        w-6 h-6 rounded-full border-2 flex items-center justify-center
-                        ${isSelected 
-                          ? "border-primary bg-primary" 
-                          : "border-muted-foreground"
-                        }
-                      `}>
-                        {isSelected && <Check className="w-4 h-4 text-white" />}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Generate Button */}
-            <div className="mt-8">
-              <Button
-                onClick={handleGenerate}
-                disabled={!image || selectedFixes.size === 0 || isGenerating}
-                size="xl"
-                variant="gradient"
-                className="w-full"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-5 h-5" />
-                    Generate 5 Variations
-                  </>
-                )}
-              </Button>
+          <h2 className="text-sm font-medium text-gray-500 mb-3">1. Upload photo</h2>
+          
+          {!image ? (
+            <div
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              className={`
+                relative border border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors
+                ${isDragging ? "border-black bg-gray-50" : "border-gray-300 hover:border-gray-400"}
+              `}
+            >
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileChange(file);
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
               
-              <p className="text-center text-sm text-muted-foreground mt-3">
-                This will use 1 credit
+              <Upload className="w-6 h-6 text-gray-400 mx-auto mb-3" />
+              <p className="text-sm text-gray-600 mb-1">
+                Drop your photo here
+              </p>
+              <p className="text-xs text-gray-400">
+                or click to browse
               </p>
             </div>
+          ) : (
+            <div className="relative rounded-lg overflow-hidden border border-gray-200">
+              <img
+                src={image}
+                alt="Upload preview"
+                className="w-full aspect-square object-cover"
+              />
+              <button
+                onClick={clearImage}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="absolute bottom-0 left-0 right-0 px-4 py-3 bg-white/90 backdrop-blur-sm border-t border-gray-100">
+                <p className="text-sm text-gray-600 truncate">{fileName}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Fix Selection */}
+        <div className="mb-8">
+          <h2 className="text-sm font-medium text-gray-500 mb-3">2. Select fixes</h2>
+          
+          <div className="space-y-2">
+            {fixOptions.map((option) => {
+              const isSelected = selectedFixes.has(option.id);
+              
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => toggleFix(option.id)}
+                  className={`
+                    w-full p-4 rounded-lg border text-left transition-colors flex items-center gap-4
+                    ${isSelected 
+                      ? "border-black bg-gray-50" 
+                      : "border-gray-200 hover:border-gray-300"
+                    }
+                  `}
+                >
+                  <div className={`
+                    w-10 h-10 rounded-full flex items-center justify-center
+                    ${isSelected ? "bg-black text-white" : "bg-gray-100 text-gray-600"}
+                  `}>
+                    {option.icon}
+                  </div>
+                  
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{option.label}</p>
+                    <p className="text-xs text-gray-500">{option.description}</p>
+                  </div>
+                  
+                  <div className={`
+                    w-5 h-5 rounded-full border flex items-center justify-center
+                    ${isSelected ? "border-black bg-black" : "border-gray-300"}
+                  `}>
+                    {isSelected && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                </button>
+              );
+            })}
           </div>
+        </div>
+
+        {/* Generate Button */}
+        <div>
+          <Button
+            onClick={handleGenerate}
+            disabled={!image || selectedFixes.size === 0 || isGenerating}
+            size="lg"
+            className="w-full"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              "Generate 5 variations"
+            )}
+          </Button>
+          
+          <p className="text-center text-xs text-gray-400 mt-3">
+            Uses 1 credit
+          </p>
         </div>
       </main>
     </div>
