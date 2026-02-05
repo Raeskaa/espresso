@@ -1,5 +1,35 @@
 @import "tailwindcss";
 
+/* Coolvetica Font */
+@font-face {
+  font-family: 'Coolvetica';
+  src: url('/fonts/coolvetica-rg.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Halftone Texture Overlay */
+.halftone-texture {
+  position: relative;
+}
+
+.halftone-texture::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: radial-gradient(circle, #2D4A3E 1px, transparent 1px);
+  background-size: 4px 4px;
+  z-index: 1;
+}
+
+.halftone-texture-dark::before {
+  background-image: radial-gradient(circle, #ffffff 1px, transparent 1px);
+  opacity: 0.05;
+}
+
 /* Espresso Artistic Theme - Inspired by watercolor florals */
 :root {
   /* Core palette from reference image */
@@ -92,6 +122,7 @@
   
   --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: var(--font-geist-mono), "SF Mono", Monaco, monospace;
+  --font-display: 'Coolvetica', var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 @layer base {
