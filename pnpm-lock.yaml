@@ -96,6 +96,9 @@ importers:
       '@clerk/nextjs':
         specifier: ^6.37.3
         version: 6.37.3(next@16.1.6(@babel/core@7.29.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@espresso/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@google/generative-ai':
         specifier: ^0.24.1
         version: 0.24.1
