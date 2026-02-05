@@ -4,6 +4,8 @@ import { useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { AnalysisPreview } from "@/components/AnalysisPreview";
+import { TemplateSelectors } from "@/components/TemplateSelector";
 import { 
   Upload, 
   X, 
@@ -13,9 +15,16 @@ import {
   Camera,
   ArrowLeft,
   Loader2,
-  Check
+  Check,
+  Sparkles
 } from "lucide-react";
-import { createGeneration } from "@/app/actions/generation";
+import { createGeneration, analyzeImage } from "@/app/actions/generation";
+import { 
+  EYE_CONTACT_TEMPLATES, 
+  POSTURE_TEMPLATES, 
+  ANGLE_TEMPLATES, 
+  LIGHTING_TEMPLATES 
+} from "@/lib/imagen/templates";
 
 interface FixOption {
   id: string;
@@ -51,13 +60,62 @@ const fixOptions: FixOption[] = [
   },
 ];
 
+const TEMPLATES = {
+  eyeContact: EYE_CONTACT_TEMPLATES,
+  posture: POSTURE_TEMPLATES,
+  angle: ANGLE_TEMPLATES,
+  lighting: LIGHTING_TEMPLATES,
+};
+
+interface AnalysisResult {
+  face: {
+    detected: boolean;
+    gazeDirection: string;
+    gazeConfidence: number;
+    expression: string;
+  };
+  pose: {
+    headTilt: number;
+    shoulderLine: string;
+    bodyPosture: string;
+  };
+  lighting: {
+    mainDirection: string;
+    quality: string;
+    colorTemp: string;
+    shadowIntensity: number;
+  };
+  composition: {
+    subjectPosition: string;
+    headroom: string;
+    cameraAngle: string;
+  };
+  issuesDetected: {
+    eyeContact: { present: boolean; severity: 1 | 2 | 3 | 4 | 5; description: string };
+    posture: { present: boolean; severity: 1 | 2 | 3 | 4 | 5; description: string };
+    angle: { present: boolean; severity: 1 | 2 | 3 | 4 | 5; description: string };
+    lighting: { present: boolean; severity: 1 | 2 | 3 | 4 | 5; description: string };
+  };
+  overallQuality: number;
+  summary: string;
+}
+
 export default function GeneratePage() {
   const router = useRouter();
   const [image, setImage] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>("");
   const [selectedFixes, setSelectedFixes] = useState<Set<string>>(new Set());
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [templateSelections, setTemplateSelections] = useState<Record<string, string>>({
+    eyeContact: "direct",
+    posture: "shoulders_back",
+    angle: "flattering",
+    lighting: "softer",
+  });
 
   const compressImage = (file: File, maxWidth: number = 800, quality: number = 0.8): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -69,7 +127,6 @@ export default function GeneratePage() {
           let width = img.width;
           let height = img.height;
           
-          // Scale down if larger than maxWidth
           if (width > maxWidth) {
             height = (height * maxWidth) / width;
             width = maxWidth;
@@ -81,7 +138,6 @@ export default function GeneratePage() {
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
           
-          // Convert to JPEG with compression
           const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
           resolve(compressedDataUrl);
         };
@@ -100,13 +156,46 @@ export default function GeneratePage() {
     }
 
     try {
-      // Compress image to stay under 1MB limit
       const compressedImage = await compressImage(file, 800, 0.7);
       setImage(compressedImage);
       setFileName(file.name);
+      setAnalysis(null); // Reset analysis when new image uploaded
     } catch (error) {
       console.error("Error processing image:", error);
       alert("Failed to process image. Please try again.");
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!image) return;
+    
+    setIsAnalyzing(true);
+    try {
+      const base64Data = image.split(',')[1];
+      const result = await analyzeImage(base64Data);
+      
+      if (result.success && result.analysis) {
+        setAnalysis(result.analysis as AnalysisResult);
+        
+        // Auto-select fixes with issues
+        const issues = result.analysis.issuesDetected;
+        const autoFixes = new Set<string>();
+        if (issues.eyeContact.present && issues.eyeContact.severity >= 3) autoFixes.add('fixEyeContact');
+        if (issues.posture.present && issues.posture.severity >= 3) autoFixes.add('improvePosture');
+        if (issues.angle.present && issues.angle.severity >= 3) autoFixes.add('adjustAngle');
+        if (issues.lighting.present && issues.lighting.severity >= 3) autoFixes.add('enhanceLighting');
+        
+        if (autoFixes.size > 0) {
+          setSelectedFixes(autoFixes);
+        }
+      } else {
+        alert(result.error || 'Analysis failed');
+      }
+    } catch (error) {
+      console.error("Analysis failed:", error);
+      alert("Analysis failed. Please try again.");
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -142,6 +231,13 @@ export default function GeneratePage() {
     });
   };
 
+  const handleSelectTemplate = (editType: string, templateId: string) => {
+    setTemplateSelections((prev) => ({
+      ...prev,
+      [editType]: templateId,
+    }));
+  };
+
   const handleGenerate = async () => {
     if (!image || selectedFixes.size === 0) return;
 
@@ -175,6 +271,8 @@ export default function GeneratePage() {
   const clearImage = () => {
     setImage(null);
     setFileName("");
+    setAnalysis(null);
+    setSelectedFixes(new Set());
   };
 
   return (
@@ -189,7 +287,7 @@ export default function GeneratePage() {
           
           <span className="font-semibold">New Generation</span>
           
-          <div className="w-16" /> {/* Spacer for centering */}
+          <div className="w-16" />
         </div>
       </header>
 
@@ -246,49 +344,120 @@ export default function GeneratePage() {
           )}
         </div>
 
-        {/* Fix Selection */}
-        <div className="mb-8">
-          <h2 className="text-sm font-medium text-gray-500 mb-3">2. Select fixes</h2>
-          
-          <div className="space-y-2">
-            {fixOptions.map((option) => {
-              const isSelected = selectedFixes.has(option.id);
-              
-              return (
-                <button
-                  key={option.id}
-                  onClick={() => toggleFix(option.id)}
-                  className={`
-                    w-full p-4 rounded-lg border text-left transition-colors flex items-center gap-4
-                    ${isSelected 
-                      ? "border-black bg-gray-50" 
-                      : "border-gray-200 hover:border-gray-300"
-                    }
-                  `}
-                >
-                  <div className={`
-                    w-10 h-10 rounded-full flex items-center justify-center
-                    ${isSelected ? "bg-black text-white" : "bg-gray-100 text-gray-600"}
-                  `}>
-                    {option.icon}
-                  </div>
-                  
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">{option.label}</p>
-                    <p className="text-xs text-gray-500">{option.description}</p>
-                  </div>
-                  
-                  <div className={`
-                    w-5 h-5 rounded-full border flex items-center justify-center
-                    ${isSelected ? "border-black bg-black" : "border-gray-300"}
-                  `}>
-                    {isSelected && <Check className="w-3 h-3 text-white" />}
-                  </div>
-                </button>
-              );
-            })}
+        {/* Analysis Preview (optional) */}
+        {image && !analysis && (
+          <div className="mb-8">
+            <button
+              onClick={handleAnalyze}
+              disabled={isAnalyzing}
+              className="w-full py-3 px-4 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Analyze photo (optional)
+                </>
+              )}
+            </button>
+            <p className="text-xs text-gray-400 text-center mt-2">
+              Get AI recommendations for fixes
+            </p>
           </div>
-        </div>
+        )}
+
+        {/* Analysis Results with Smart Fix Selection */}
+        {analysis && (
+          <div className="mb-8">
+            <h2 className="text-sm font-medium text-gray-500 mb-3">2. Select fixes</h2>
+            <AnalysisPreview 
+              analysis={analysis} 
+              selectedFixes={selectedFixes}
+              onToggleFix={toggleFix}
+            />
+          </div>
+        )}
+
+        {/* Manual Fix Selection (when no analysis) */}
+        {!analysis && image && (
+          <div className="mb-8">
+            <h2 className="text-sm font-medium text-gray-500 mb-3">2. Select fixes</h2>
+            
+            <div className="space-y-2">
+              {fixOptions.map((option) => {
+                const isSelected = selectedFixes.has(option.id);
+                
+                return (
+                  <button
+                    key={option.id}
+                    onClick={() => toggleFix(option.id)}
+                    className={`
+                      w-full p-4 rounded-lg border text-left transition-colors flex items-center gap-4
+                      ${isSelected 
+                        ? "border-black bg-gray-50" 
+                        : "border-gray-200 hover:border-gray-300"
+                      }
+                    `}
+                  >
+                    <div className={`
+                      w-10 h-10 rounded-full flex items-center justify-center
+                      ${isSelected ? "bg-black text-white" : "bg-gray-100 text-gray-600"}
+                    `}>
+                      {option.icon}
+                    </div>
+                    
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{option.label}</p>
+                      <p className="text-xs text-gray-500">{option.description}</p>
+                    </div>
+                    
+                    <div className={`
+                      w-5 h-5 rounded-full border flex items-center justify-center
+                      ${isSelected ? "border-black bg-black" : "border-gray-300"}
+                    `}>
+                      {isSelected && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Advanced: Template Selection */}
+        {selectedFixes.size > 0 && (
+          <div className="mb-8">
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="text-sm text-gray-500 hover:text-black transition-colors flex items-center gap-1"
+            >
+              {showAdvanced ? "Hide" : "Show"} advanced options
+              <svg 
+                className={`w-4 h-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`} 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {showAdvanced && (
+              <div className="mt-4">
+                <TemplateSelectors
+                  selectedFixes={selectedFixes}
+                  templateSelections={templateSelections}
+                  onSelectTemplate={handleSelectTemplate}
+                  templates={TEMPLATES}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Generate Button */}
         <div>

@@ -5,9 +5,11 @@ import { getDb, users, generations, creditTransactions } from '@espresso/db';
 import { eq } from 'drizzle-orm';
 import { createServerClient } from '@/lib/supabase';
 import { generateImageVariations } from '@/lib/imagen';
+import { analyze } from '@/lib/imagen/analyzer';
 import { getDefaultTemplate } from '@/lib/imagen/templates';
 import type { FixOptions } from '@espresso/utils';
 import type { PipelineProgress, VariationResult, FixSelection } from '@/lib/imagen';
+import type { AnalysisResult } from '@/lib/imagen/types';
 
 // Helper to generate unique IDs
 function generateId(prefix: string): string {
@@ -271,5 +273,29 @@ export async function getUserGenerations() {
   } catch (error) {
     console.error('Error getting user generations:', error);
     return [];
+  }
+}
+
+// Analyze an image without starting a generation
+export async function analyzeImage(imageBase64: string): Promise<{
+  success: boolean;
+  analysis?: AnalysisResult;
+  error?: string;
+}> {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  try {
+    const analysis = await analyze(imageBase64);
+    return { success: true, analysis };
+  } catch (error) {
+    console.error('Error analyzing image:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Analysis failed' 
+    };
   }
 }
