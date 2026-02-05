@@ -17,6 +17,7 @@ import {
   Loader2,
   Check
 } from "lucide-react";
+import { createGeneration } from "@/app/actions/generation";
 
 interface FixOption {
   id: string;
@@ -117,13 +118,23 @@ export default function GeneratePage() {
     setIsGenerating(true);
     
     try {
-      // TODO: Call API to generate images
-      // For now, simulate a delay
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Extract base64 data from data URL
+      const base64Data = image.split(',')[1];
       
-      // TODO: Navigate to results page
-      // router.push(`/generation/${generationId}`);
-      alert("Generation complete! (Demo - API not connected yet)");
+      const fixes = {
+        fixEyeContact: selectedFixes.has('fixEyeContact'),
+        improvePosture: selectedFixes.has('improvePosture'),
+        adjustAngle: selectedFixes.has('adjustAngle'),
+        enhanceLighting: selectedFixes.has('enhanceLighting'),
+      };
+
+      const result = await createGeneration(base64Data, fixes);
+      
+      if (result.success && result.generationId) {
+        router.push(`/generation/${result.generationId}`);
+      } else {
+        alert(result.error || 'Generation failed. Please try again.');
+      }
     } catch (error) {
       console.error("Generation failed:", error);
       alert("Generation failed. Please try again.");
