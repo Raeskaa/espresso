@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { PipelineProgress, PipelineProgressData } from "@/components/PipelineProgress";
 import { 
   ArrowLeft,
   Download,
@@ -11,6 +12,17 @@ import {
   Check
 } from "lucide-react";
 import { getGeneration } from "@/app/actions/generation";
+
+const STYLE_NAMES = ['Natural', 'Professional', 'Editorial', 'Warm', 'Cool'];
+
+interface VariationResult {
+  index: number;
+  style: string;
+  success: boolean;
+  imageUrl?: string;
+  attempts: number;
+  fallback: boolean;
+}
 
 interface Generation {
   id: string;
@@ -23,6 +35,9 @@ interface Generation {
     enhanceLighting: boolean;
   };
   status: 'pending' | 'processing' | 'completed' | 'failed';
+  pipelineStage?: string;
+  pipelineProgress?: PipelineProgressData | null;
+  variationResults?: VariationResult[] | null;
   createdAt: Date;
 }
 
@@ -151,50 +166,53 @@ export default function GenerationResultPage() {
         </div>
 
         {generation.status === 'processing' ? (
-          <div className="py-24 text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 mb-1">Generating your variations...</p>
-            <p className="text-sm text-gray-400">This usually takes 10-30 seconds</p>
+          <div className="py-8">
+            <PipelineProgress progress={generation.pipelineProgress || null} />
           </div>
         ) : generation.status === 'completed' ? (
           <>
             {/* Image Grid */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-              {generation.generatedImageUrls.map((url, index) => (
-                <div
-                  key={index}
-                  className={`
-                    relative aspect-[4/5] rounded-lg overflow-hidden cursor-pointer border-2 transition-all
-                    ${selectedImage === index ? 'border-black' : 'border-transparent hover:border-gray-200'}
-                  `}
-                  onClick={() => setSelectedImage(selectedImage === index ? null : index)}
-                >
-                  <img
-                    src={url}
-                    alt={`Variation ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                  
-                  {/* Number badge */}
-                  <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-white text-xs font-medium flex items-center justify-center shadow-sm">
-                    {index + 1}
-                  </div>
-
-                  {/* Selected indicator */}
-                  {selectedImage === index && (
-                    <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black flex items-center justify-center">
-                      <Check className="w-3 h-3 text-white" />
+              {generation.generatedImageUrls.map((url, index) => {
+                const styleName = generation.variationResults?.[index]?.style || STYLE_NAMES[index] || `Variation ${index + 1}`;
+                return (
+                  <div
+                    key={index}
+                    className={`
+                      relative aspect-[4/5] rounded-lg overflow-hidden cursor-pointer border-2 transition-all
+                      ${selectedImage === index ? 'border-black' : 'border-transparent hover:border-gray-200'}
+                    `}
+                    onClick={() => setSelectedImage(selectedImage === index ? null : index)}
+                  >
+                    <img
+                      src={url}
+                      alt={styleName}
+                      className="w-full h-full object-cover"
+                    />
+                    
+                    {/* Style label */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 pt-6">
+                      <span className="text-white text-xs font-medium capitalize">{styleName}</span>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {/* Selected indicator */}
+                    {selectedImage === index && (
+                      <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black flex items-center justify-center">
+                        <Check className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Selected Image Preview */}
             {selectedImage !== null && (
               <div className="border border-gray-200 rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm font-medium">Variation {selectedImage + 1}</span>
+                  <span className="text-sm font-medium capitalize">
+                    {generation.variationResults?.[selectedImage]?.style || STYLE_NAMES[selectedImage] || `Variation ${selectedImage + 1}`}
+                  </span>
                   <Button
                     size="sm"
                     variant="outline"
@@ -207,7 +225,7 @@ export default function GenerationResultPage() {
                 <div className="flex justify-center">
                   <img
                     src={generation.generatedImageUrls[selectedImage]}
-                    alt={`Variation ${selectedImage + 1}`}
+                    alt={generation.variationResults?.[selectedImage]?.style || STYLE_NAMES[selectedImage] || `Variation ${selectedImage + 1}`}
                     className="max-h-[500px] rounded-lg"
                   />
                 </div>

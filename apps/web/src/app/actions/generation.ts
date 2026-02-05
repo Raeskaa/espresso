@@ -5,7 +5,9 @@ import { getDb, users, generations, creditTransactions } from '@espresso/db';
 import { eq } from 'drizzle-orm';
 import { createServerClient } from '@/lib/supabase';
 import { generateImageVariations } from '@/lib/imagen';
+import { getDefaultTemplate } from '@/lib/imagen/templates';
 import type { FixOptions } from '@espresso/utils';
+import type { PipelineProgress, VariationResult, FixSelection } from '@/lib/imagen';
 
 // Helper to generate unique IDs
 function generateId(prefix: string): string {
@@ -114,8 +116,7 @@ export async function createGeneration(
     });
 
     // Generate images asynchronously (in background)
-    // For now, we simulate with mock images after a delay
-    processGeneration(generationId, imageBase64, fixes).catch(console.error);
+    processGeneration(generationId, imageBase64, fixes, userId).catch(console.error);
 
     return {
       success: true,
@@ -129,18 +130,51 @@ export async function createGeneration(
 }
 
 // Background processing function
-async function processGeneration(generationId: string, imageBase64: string, fixes: FixOptions) {
+async function processGeneration(generationId: string, imageBase64: string, fixes: FixOptions, userId: string) {
   const db = getDb();
   
   try {
-    // Generate image variations
-    const generatedUrls = await generateImageVariations(imageBase64, fixes, 5);
+    // Progress callback to save real-time updates to database
+    const onProgress = async (progress: PipelineProgress): Promise<void> => {
+      await db.update(generations)
+        .set({
+          pipelineStage: progress.stage,
+          pipelineProgress: progress as unknown as Record<string, unknown>,
+        })
+        .where(eq(generations.id, generationId));
+    };
+
+    // Convert boolean FixOptions to FixSelection array for sequential pipeline
+    const fixSelections: FixSelection[] = [
+      { editType: 'eyeContact', enabled: fixes.fixEyeContact, template: getDefaultTemplate('eyeContact') },
+      { editType: 'posture', enabled: fixes.improvePosture, template: getDefaultTemplate('posture') },
+      { editType: 'angle', enabled: fixes.adjustAngle, template: getDefaultTemplate('angle') },
+      { editType: 'lighting', enabled: fixes.enhanceLighting, template: getDefaultTemplate('lighting') },
+    ];
+
+    // Generate image variations using the new agentic pipeline
+    const result = await generateImageVariations({
+      originalImageBase64: imageBase64,
+      fixes,
+      fixSelections,
+      userId,
+      generationId,
+      onProgress,
+    });
+
+    // Extract successful image URLs from variations
+    const generatedUrls = result.variations
+      .filter((v: VariationResult) => v.success && v.imageUrl)
+      .map((v: VariationResult) => v.imageUrl as string);
 
     // Update generation with results
     await db.update(generations)
       .set({
         generatedImageUrls: generatedUrls,
-        status: 'completed',
+        variationResults: result.variations as unknown as Record<string, unknown>[],
+        pipelineStage: result.success ? 'complete' : 'failed',
+        status: result.success ? 'completed' : 'failed',
+        errorMessage: result.success ? null : 'No successful variations generated',
       })
       .where(eq(generations.id, generationId));
   } catch (error) {
@@ -150,6 +184,7 @@ async function processGeneration(generationId: string, imageBase64: string, fixe
     await db.update(generations)
       .set({
         status: 'failed',
+        pipelineStage: 'failed',
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
       })
       .where(eq(generations.id, generationId));
@@ -184,6 +219,9 @@ export async function getGeneration(id: string) {
         enhanceLighting: generation.enhanceLighting,
       },
       status: generation.status,
+      pipelineStage: generation.pipelineStage,
+      pipelineProgress: generation.pipelineProgress as PipelineProgress | null,
+      variationResults: generation.variationResults as VariationResult[] | null,
       createdAt: generation.createdAt,
     };
   } catch (error) {

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, boolean, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, integer, boolean, pgEnum, jsonb } from 'drizzle-orm/pg-core';
 
 // Enums
 export const subscriptionTierEnum = pgEnum('subscription_tier', ['free', 'starter', 'pro']);
@@ -28,6 +28,11 @@ export const generations = pgTable('generations', {
   enhanceLighting: boolean('enhance_lighting').notNull().default(false),
   status: generationStatusEnum('status').notNull().default('pending'),
   errorMessage: text('error_message'),
+  fixSelections: jsonb('fix_selections').default([]),
+  // Pipeline progress tracking
+  pipelineStage: text('pipeline_stage').default('pending'),
+  pipelineProgress: jsonb('pipeline_progress').default({}),
+  variationResults: jsonb('variation_results').default([]),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   expiresAt: timestamp('expires_at').notNull(),
 });

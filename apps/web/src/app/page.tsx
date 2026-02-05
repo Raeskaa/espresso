@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ExampleGallery, Testimonials, UseCases, FAQ } from "@/components/landing";
 import { 
   Eye, 
   Move, 
@@ -54,6 +55,22 @@ export default function HomePage() {
           <p className="text-sm text-gray-400">
             3 free generations. No credit card required.
           </p>
+        </div>
+      </section>
+
+      {/* Before/After Examples */}
+      <section className="py-24 px-6 bg-gray-50">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-semibold tracking-tight mb-4">
+              See the difference
+            </h2>
+            <p className="text-gray-500">
+              Real examples of what Espresso can do.
+            </p>
+          </div>
+          
+          <ExampleGallery />
         </div>
       </section>
 
@@ -145,6 +162,22 @@ export default function HomePage() {
               </p>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Use Cases */}
+      <section className="py-24 px-6 border-t border-gray-100">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-semibold tracking-tight mb-4">
+              Perfect for any use case
+            </h2>
+            <p className="text-gray-500">
+              Whether it's professional or personal, we've got you covered.
+            </p>
+          </div>
+          
+          <UseCases />
         </div>
       </section>
 
@@ -248,6 +281,35 @@ export default function HomePage() {
           <p className="mt-8 text-center text-sm text-gray-500">
             Need more? Get a 25-credit pack for $4.99 anytime.
           </p>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section className="py-24 px-6 bg-gray-50">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-semibold tracking-tight mb-4">
+              Loved by thousands
+            </h2>
+            <p className="text-gray-500">
+              See what our users are saying.
+            </p>
+          </div>
+          
+          <Testimonials />
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="py-24 px-6 border-t border-gray-100">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-semibold tracking-tight mb-4">
+              Frequently asked questions
+            </h2>
+          </div>
+          
+          <FAQ />
         </div>
       </section>
 
