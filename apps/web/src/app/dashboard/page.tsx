@@ -10,9 +10,11 @@ import {
   Clock, 
   Image as ImageIcon,
   Settings,
-  LogOut
+  LogOut,
+  Loader2
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
+import { getCredits, getUserGenerations } from "@/app/actions/generation";
 
 export default async function DashboardPage() {
   const user = await currentUser();
@@ -21,9 +23,9 @@ export default async function DashboardPage() {
     redirect("/sign-in");
   }
 
-  // TODO: Fetch from database
-  const credits: number = 3;
-  const generations: { id: string; createdAt: Date; status: string; thumbnail?: string }[] = [];
+  // Fetch real data from database
+  const credits = await getCredits();
+  const generations = await getUserGenerations();
 
   return (
     <div className="min-h-screen bg-background">
@@ -150,18 +152,27 @@ export default async function DashboardPage() {
                 <Link href={`/generation/${gen.id}`} key={gen.id}>
                   <Card className="overflow-hidden hover:border-primary/50 transition-all">
                     <div className="aspect-square bg-muted relative">
-                      {gen.thumbnail ? (
+                      {gen.generatedImageUrls && gen.generatedImageUrls.length > 0 ? (
                         <img 
-                          src={gen.thumbnail} 
+                          src={gen.generatedImageUrls[0]} 
                           alt="Generation thumbnail"
                           className="w-full h-full object-cover"
                         />
+                      ) : gen.status === 'processing' ? (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                        </div>
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center">
                           <ImageIcon className="w-8 h-8 text-muted-foreground" />
                         </div>
                       )}
-                      <div className="absolute top-2 right-2 px-2 py-1 rounded-full bg-background/80 text-xs font-medium">
+                      <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium ${
+                        gen.status === 'completed' ? 'bg-green-500/20 text-green-500' :
+                        gen.status === 'processing' ? 'bg-primary/20 text-primary' :
+                        gen.status === 'failed' ? 'bg-red-500/20 text-red-500' :
+                        'bg-background/80'
+                      }`}>
                         {gen.status}
                       </div>
                     </div>
