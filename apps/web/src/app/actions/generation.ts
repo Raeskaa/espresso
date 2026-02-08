@@ -7,6 +7,7 @@ import { createServerClient } from '@/lib/supabase';
 import { generateImageVariations } from '@/lib/imagen';
 import { analyze } from '@/lib/imagen/analyzer';
 import { getDefaultTemplate } from '@/lib/imagen/templates';
+import { generateDatingProfilePhotos } from '@/lib/imagen/dating-studio';
 import type { FixOptions } from '@espresso/utils';
 import type { PipelineProgress, VariationResult, FixSelection } from '@/lib/imagen';
 import type { AnalysisResult } from '@/lib/imagen/types';
@@ -259,8 +260,7 @@ export async function getUserGenerations() {
     const db = getDb();
     const userGenerations = await db.query.generations.findMany({
       where: eq(generations.userId, userId),
-      orderBy: (generations, { desc }) => [desc(generations.createdAt)],
-      limit: 20,
+      orderBy: (generations, { desc }) => [desc(generations.createdAt)]
     });
 
     return userGenerations.map(g => ({
@@ -297,5 +297,223 @@ export async function analyzeImage(imageBase64: string): Promise<{
       success: false, 
       error: error instanceof Error ? error.message : 'Analysis failed' 
     };
+  }
+}
+
+// Dating Studio generation
+export async function createDatingProfileGeneration(
+  selfies: string[], // Array of base64 images
+  references: string[], // Array of base64 reference images
+  targetApp: string
+): Promise<{ success: boolean; generationId?: string; error?: string; creditsRemaining?: number }> {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  try {
+    const db = getDb();
+    const user = await getOrCreateUser(userId);
+
+    // Dating studio costs 5 credits
+    const creditCost = 5;
+    
+    if (user.credits < creditCost) {
+      return { success: false, error: `Insufficient credits. Dating Profile Studio requires ${creditCost} credits.` };
+    }
+
+    const generationId = generateId('dating');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    // Upload selfies to Supabase Storage
+    const supabase = createServerClient();
+    const uploadedSelfieUrls: string[] = [];
+    
+    for (let i = 0; i < selfies.length; i++) {
+      const imagePath = `dating/${userId}/${generationId}/selfie_${i}.jpg`;
+      const imageBuffer = Buffer.from(selfies[i], 'base64');
+      
+      const { error: uploadError } = await supabase.storage
+        .from('generations')
+        .upload(imagePath, imageBuffer, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        });
+
+      if (!uploadError) {
+        const url = supabase.storage.from('generations').getPublicUrl(imagePath).data.publicUrl;
+        uploadedSelfieUrls.push(url);
+      }
+    }
+
+    // Create generation record
+    await db.insert(generations).values({
+      id: generationId,
+      userId,
+      originalImageUrl: uploadedSelfieUrls[0] || '',
+      generatedImageUrls: [],
+      status: 'processing',
+      pipelineStage: 'analyzing',
+      expiresAt,
+      // Store dating studio metadata in pipeline progress
+      pipelineProgress: {
+        type: 'dating_studio',
+        targetApp,
+        selfieCount: selfies.length,
+        referenceCount: references.length,
+        stage: 'analyzing',
+        message: 'Analyzing your photos...',
+      } as unknown as Record<string, unknown>,
+    });
+
+    // Deduct credits
+    await db.update(users)
+      .set({ credits: user.credits - creditCost, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+
+    // Record credit transaction
+    await db.insert(creditTransactions).values({
+      id: generateId('txn'),
+      userId,
+      amount: -creditCost,
+      reason: 'dating_studio',
+      generationId,
+    });
+
+    // Process in background
+    processDatingGeneration(generationId, selfies, references, targetApp, userId).catch(console.error);
+
+    return {
+      success: true,
+      generationId,
+      creditsRemaining: user.credits - creditCost,
+    };
+  } catch (error) {
+    console.error('Error creating dating profile generation:', error);
+    return { success: false, error: 'Failed to create generation. Please try again.' };
+  }
+}
+
+// Background processing for dating studio
+async function processDatingGeneration(
+  generationId: string, 
+  selfies: string[], 
+  references: string[], 
+  targetApp: string,
+  userId: string
+) {
+  const db = getDb();
+  const supabase = createServerClient();
+  
+  try {
+    // Update progress - analyzing
+    await db.update(generations)
+      .set({
+        pipelineStage: 'analyzing',
+        pipelineProgress: {
+          type: 'dating_studio',
+          targetApp,
+          stage: 'analyzing',
+          message: 'Analyzing your photos and inspiration images...',
+          progress: 10,
+        } as unknown as Record<string, unknown>,
+      })
+      .where(eq(generations.id, generationId));
+
+    // Update progress - generating
+    await db.update(generations)
+      .set({
+        pipelineStage: 'generating',
+        pipelineProgress: {
+          type: 'dating_studio',
+          targetApp,
+          stage: 'generating',
+          message: 'Creating your dating profile photos with AI...',
+          progress: 30,
+        } as unknown as Record<string, unknown>,
+      })
+      .where(eq(generations.id, generationId));
+
+    // Use the new dating studio module to generate photos
+    console.log('[Dating Generation] Starting with', selfies.length, 'selfies and', references.length, 'references');
+    
+    const result = await generateDatingProfilePhotos(selfies, references, 4);
+    
+    console.log('[Dating Generation] Result:', result.imageUrls.length, 'images,', result.errors.length, 'errors');
+
+    // Upload generated images to Supabase and get URLs
+    const uploadedUrls: string[] = [];
+    
+    for (let i = 0; i < result.imageUrls.length; i++) {
+      const dataUrl = result.imageUrls[i];
+      const base64Data = dataUrl.split(',')[1];
+      
+      if (base64Data) {
+        const imagePath = `dating/${userId}/${generationId}/generated_${i}.png`;
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+        
+        const { error: uploadError } = await supabase.storage
+          .from('generations')
+          .upload(imagePath, imageBuffer, {
+            contentType: 'image/png',
+            upsert: true,
+          });
+
+        if (!uploadError) {
+          const url = supabase.storage.from('generations').getPublicUrl(imagePath).data.publicUrl;
+          uploadedUrls.push(url);
+        } else {
+          console.error('Upload error:', uploadError);
+          // Still use the data URL as fallback
+          uploadedUrls.push(dataUrl);
+        }
+      }
+      
+      // Update progress
+      await db.update(generations)
+        .set({
+          pipelineProgress: {
+            type: 'dating_studio',
+            targetApp,
+            stage: 'generating',
+            message: `Generated ${i + 1}/${result.imageUrls.length} photos...`,
+            progress: 30 + ((i + 1) / result.imageUrls.length) * 60,
+          } as unknown as Record<string, unknown>,
+        })
+        .where(eq(generations.id, generationId));
+    }
+
+    // Update generation with results
+    await db.update(generations)
+      .set({
+        generatedImageUrls: uploadedUrls,
+        pipelineStage: uploadedUrls.length > 0 ? 'complete' : 'failed',
+        status: uploadedUrls.length > 0 ? 'completed' : 'failed',
+        pipelineProgress: {
+          type: 'dating_studio',
+          targetApp,
+          stage: 'complete',
+          message: uploadedUrls.length > 0 
+            ? `Generated ${uploadedUrls.length} dating profile photos!` 
+            : 'Generation failed',
+          progress: 100,
+          errors: result.errors,
+        } as unknown as Record<string, unknown>,
+        errorMessage: uploadedUrls.length > 0 ? null : result.errors.join(', ') || 'No photos could be generated',
+      })
+      .where(eq(generations.id, generationId));
+
+  } catch (error) {
+    console.error('Error processing dating generation:', error);
+    
+    await db.update(generations)
+      .set({
+        status: 'failed',
+        pipelineStage: 'failed',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      })
+      .where(eq(generations.id, generationId));
   }
 }

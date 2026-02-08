@@ -16,24 +16,48 @@ export async function uploadToSupabase(
 ): Promise<string> {
   const supabase = createServerClient();
   const timestamp = Date.now();
-  const path = `generated/${userId}/${timestamp}-variation-${variationIndex + 1}.png`;
+  const filename = `${timestamp}-variation-${variationIndex + 1}.png`;
+  const path = `${userId}/${filename}`;
   
-  const imageBuffer = Buffer.from(base64Data, 'base64');
+  // Clean base64 data - remove data URL prefix if present
+  const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
   
-  const { error } = await supabase.storage
+  // Validate base64 length
+  if (!cleanBase64 || cleanBase64.length < 100) {
+    throw new Error(`Invalid image data: too short (${cleanBase64?.length || 0} chars)`);
+  }
+  
+  // Convert base64 to Uint8Array using Buffer (Node.js)
+  const buffer = Buffer.from(cleanBase64, 'base64');
+  const bytes = new Uint8Array(buffer);
+  
+  console.log(`[Storage] Uploading to path: ${path}, size: ${bytes.length} bytes`);
+  
+  // Validate it looks like a PNG (starts with PNG header)
+  const pngHeader = [0x89, 0x50, 0x4E, 0x47]; // PNG magic number
+  const isPng = pngHeader.every((byte, i) => bytes[i] === byte);
+  if (!isPng) {
+    console.log(`[Storage] Warning: Image doesn't have PNG header. First 8 bytes:`, Array.from(bytes.slice(0, 8)));
+  }
+  
+  const { data, error } = await supabase.storage
     .from('generations')
-    .upload(path, imageBuffer, {
+    .upload(path, bytes, {
       contentType: 'image/png',
       upsert: true,
     });
 
   if (error) {
-    console.error('Supabase upload error:', error);
+    console.error('[Storage] Upload error:', error);
+    console.error('[Storage] Error name:', error.name);
+    console.error('[Storage] Full error:', JSON.stringify(error, null, 2));
     throw new Error(`Failed to upload image: ${error.message}`);
   }
 
-  const { data } = supabase.storage.from('generations').getPublicUrl(path);
-  return data.publicUrl;
+  console.log(`[Storage] Upload successful: ${data.path}`);
+  
+  const { data: urlData } = supabase.storage.from('generations').getPublicUrl(path);
+  return urlData.publicUrl;
 }
 
 /**

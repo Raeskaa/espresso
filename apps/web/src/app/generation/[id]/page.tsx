@@ -5,11 +5,13 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PipelineProgress, PipelineProgressData } from "@/components/PipelineProgress";
+import { BumblePreview, TinderPreview, HingePreview } from "@/components/dating-preview/PhonePreview";
 import { 
   ArrowLeft,
   Download,
   Loader2,
-  Check
+  Check,
+  Smartphone
 } from "lucide-react";
 import { getGeneration } from "@/app/actions/generation";
 
@@ -48,6 +50,11 @@ export default function GenerationResultPage() {
   const [generation, setGeneration] = useState<Generation | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<number | null>(null);
+  const [showPhonePreview, setShowPhonePreview] = useState(false);
+  const [selectedApp, setSelectedApp] = useState<'bumble' | 'tinder' | 'hinge'>('bumble');
+
+  // Check if this is a dating studio generation
+  const isDatingGeneration = generationId.startsWith('dating_');
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -213,21 +220,98 @@ export default function GenerationResultPage() {
                   <span className="text-sm font-medium capitalize">
                     {generation.variationResults?.[selectedImage]?.style || STYLE_NAMES[selectedImage] || `Variation ${selectedImage + 1}`}
                   </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDownload(generation.generatedImageUrls[selectedImage], selectedImage)}
-                  >
-                    <Download className="w-4 h-4 mr-1" />
-                    Download
-                  </Button>
+                  <div className="flex gap-2">
+                    {isDatingGeneration && (
+                      <Button
+                        size="sm"
+                        variant={showPhonePreview ? "default" : "outline"}
+                        onClick={() => setShowPhonePreview(!showPhonePreview)}
+                      >
+                        <Smartphone className="w-4 h-4 mr-1" />
+                        Preview in App
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDownload(generation.generatedImageUrls[selectedImage], selectedImage)}
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Download
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex justify-center">
+                
+                <div className="flex justify-center gap-8">
+                  {/* Main image */}
                   <img
                     src={generation.generatedImageUrls[selectedImage]}
                     alt={generation.variationResults?.[selectedImage]?.style || STYLE_NAMES[selectedImage] || `Variation ${selectedImage + 1}`}
                     className="max-h-[500px] rounded-lg"
                   />
+                  
+                  {/* Phone preview */}
+                  {showPhonePreview && isDatingGeneration && (
+                    <div className="flex flex-col items-center gap-4">
+                      {/* App selector */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedApp('bumble')}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                            selectedApp === 'bumble' ? 'bg-[#FFC629] text-black' : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          🐝 Bumble
+                        </button>
+                        <button
+                          onClick={() => setSelectedApp('tinder')}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                            selectedApp === 'tinder' ? 'bg-gradient-to-r from-pink-500 to-orange-400 text-white' : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          🔥 Tinder
+                        </button>
+                        <button
+                          onClick={() => setSelectedApp('hinge')}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                            selectedApp === 'hinge' ? 'bg-[#5C5C5C] text-white' : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          💜 Hinge
+                        </button>
+                      </div>
+                      
+                      {/* Phone mockup */}
+                      {selectedApp === 'bumble' && (
+                        <BumblePreview
+                          photos={[generation.generatedImageUrls[selectedImage]]}
+                          name="You"
+                          age={25}
+                          bio="Living my best life ☕️ | Love good conversations and spontaneous adventures"
+                          occupation="Creative Professional"
+                        />
+                      )}
+                      {selectedApp === 'tinder' && (
+                        <TinderPreview
+                          photos={[generation.generatedImageUrls[selectedImage]]}
+                          name="You"
+                          age={25}
+                          bio="Living my best life ☕️ | Love good conversations and spontaneous adventures"
+                          distance="2 miles away"
+                        />
+                      )}
+                      {selectedApp === 'hinge' && (
+                        <HingePreview
+                          photos={[generation.generatedImageUrls[selectedImage]]}
+                          name="You"
+                          age={25}
+                          prompts={[
+                            { question: "A life goal of mine", answer: "To travel to every continent and try the local coffee" }
+                          ]}
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
