@@ -27,7 +27,7 @@ interface GenerationRequest {
 }
 
 // Build a detailed prompt for dating photo generation
-function buildDatingPrompt(customization: PhotoCustomization, profileTone: string): string {
+export function buildDatingPrompt(customization: PhotoCustomization, profileTone: string): string {
   const environmentDescriptions: Record<string, string> = {
     'keep': 'maintaining the original background',
     'outdoor': 'in a beautiful outdoor nature setting with trees, mountains, or a scenic park',
@@ -92,7 +92,7 @@ async function validateGeneratedPhoto(
   try {
     const genAI = getGenAI();
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    
+
     const response = await model.generateContent({
       contents: [{
         role: 'user',
@@ -139,7 +139,7 @@ Return ONLY a JSON object:
       const result = JSON.parse(jsonMatch[0]);
       return {
         score: result.overallScore || 0,
-        approved: result.approved || result.overallScore >= 75,
+        approved: result.approved || result.overallScore >= 90,
         feedback: result.feedback || '',
       };
     }
@@ -158,7 +158,7 @@ async function generateSinglePhoto(
   maxRetries: number = 3
 ): Promise<{ base64: string; score: number; approved: boolean } | null> {
   const genAI = getGenAI();
-  
+
   // Use Gemini 2.5 Flash Image (Nano Banana) for image generation
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.5-flash-image',
@@ -179,16 +179,16 @@ async function generateSinglePhoto(
       }
 
       // Build content with proper typing
-      const contentParts = referenceBase64 
+      const contentParts = referenceBase64
         ? [
-            { inlineData: { mimeType: 'image/jpeg', data: selfieBase64 } },
-            { inlineData: { mimeType: 'image/jpeg', data: referenceBase64 } },
-            { text: promptText },
-          ]
+          { inlineData: { mimeType: 'image/jpeg', data: selfieBase64 } },
+          { inlineData: { mimeType: 'image/jpeg', data: referenceBase64 } },
+          { text: promptText },
+        ]
         : [
-            { inlineData: { mimeType: 'image/jpeg', data: selfieBase64 } },
-            { text: promptText },
-          ];
+          { inlineData: { mimeType: 'image/jpeg', data: selfieBase64 } },
+          { text: promptText },
+        ];
 
       const response = await model.generateContent({
         contents: [{
@@ -268,8 +268,8 @@ export async function POST(request: NextRequest) {
       console.log(`[Dating] Generating photo ${i + 1}/${numberOfPhotos}`);
 
       // Cycle through references if available
-      const reference = references && references.length > 0 
-        ? references[i % references.length] 
+      const reference = references && references.length > 0
+        ? references[i % references.length]
         : null;
 
       const result = await generateSinglePhoto(primarySelfie, reference, prompt, 3);
@@ -284,7 +284,25 @@ export async function POST(request: NextRequest) {
             score: result.score,
             approved: result.approved,
           });
-          console.log(`[Dating] Photo ${i + 1} uploaded: score=${result.score}`);
+
+          // Save to history table
+          try {
+            const db = (await import('@/lib/db/index')).getDb();
+            const { datingPhotoHistory } = await import('@/lib/db/schema');
+            const { v4: uuidv4 } = await import('uuid');
+            await db.insert(datingPhotoHistory).values({
+              id: uuidv4(),
+              userId,
+              imageUrl: url,
+              prompt: `Photo ${i + 1}`,
+              customization,
+              score: result.score,
+              approved: result.approved ? 1 : 0,
+              createdAt: new Date(),
+            });
+          } catch (dbError) {
+            console.error('[Dating] Failed to save photo to history:', dbError);
+          }
         } catch (uploadError) {
           console.error(`[Dating] Upload error for photo ${i + 1}:`, uploadError);
           // Return base64 as data URL if upload fails
@@ -318,3 +336,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export { generateSinglePhoto };

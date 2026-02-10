@@ -41,7 +41,7 @@ export async function analyzeFace(imageBase64: string): Promise<FaceAnalysis> {
   console.log('[Dating Studio] Analyzing face...');
   
   const ai = getGenAI();
-  const model = ai.getGenerativeModel({ model: 'gemini-3-flash' });
+  const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
   
   const prompt = `Analyze this person's appearance for the purpose of describing them in an image generation prompt. 
 Be specific but respectful. Focus on observable physical characteristics.
@@ -106,7 +106,7 @@ export async function analyzeReference(imageBase64: string): Promise<ReferenceAn
   console.log('[Dating Studio] Analyzing reference image...');
   
   const ai = getGenAI();
-  const model = ai.getGenerativeModel({ model: 'gemini-3-flash' });
+  const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
   
   const prompt = `Analyze this image to understand the setting, pose, style, and mood for recreating a similar photo with a different person.
 
@@ -192,9 +192,10 @@ export async function generateDatingPhotoWithReferences(
   try {
     const ai = getGenAI();
     
-    // Use Gemini 3 Flash for best character consistency
+    // Use Gemini 3 Pro Image Preview for best character consistency
+    // This model supports up to 5 human reference images for face consistency
     const model = ai.getGenerativeModel({
-      model: 'gemini-3-flash',
+      model: 'gemini-3-pro-image-preview',
       generationConfig: {
         // @ts-expect-error - responseModalities is supported but not in types yet
         responseModalities: ['TEXT', 'IMAGE'],
@@ -221,7 +222,7 @@ DO NOT return the original images. Generate a completely NEW photorealistic imag
 
 The final image should be high quality, photorealistic, perfect for a dating app profile. The person should look confident, approachable, and genuine.`;
 
-    console.log('[Dating Studio] Generating with Gemini 3 Flash...');
+    console.log('[Dating Studio] Generating with Gemini 3 Pro Image...');
     console.log('[Dating Studio] Prompt:', prompt);
     
     const result = await model.generateContent({

@@ -18,28 +18,28 @@ export async function uploadToSupabase(
   const timestamp = Date.now();
   const filename = `${timestamp}-variation-${variationIndex + 1}.png`;
   const path = `${userId}/${filename}`;
-  
+
   // Clean base64 data - remove data URL prefix if present
   const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
-  
+
   // Validate base64 length
   if (!cleanBase64 || cleanBase64.length < 100) {
     throw new Error(`Invalid image data: too short (${cleanBase64?.length || 0} chars)`);
   }
-  
+
   // Convert base64 to Uint8Array using Buffer (Node.js)
   const buffer = Buffer.from(cleanBase64, 'base64');
   const bytes = new Uint8Array(buffer);
-  
+
   console.log(`[Storage] Uploading to path: ${path}, size: ${bytes.length} bytes`);
-  
+
   // Validate it looks like a PNG (starts with PNG header)
   const pngHeader = [0x89, 0x50, 0x4E, 0x47]; // PNG magic number
   const isPng = pngHeader.every((byte, i) => bytes[i] === byte);
   if (!isPng) {
     console.log(`[Storage] Warning: Image doesn't have PNG header. First 8 bytes:`, Array.from(bytes.slice(0, 8)));
   }
-  
+
   const { data, error } = await supabase.storage
     .from('generations')
     .upload(path, bytes, {
@@ -55,8 +55,9 @@ export async function uploadToSupabase(
   }
 
   console.log(`[Storage] Upload successful: ${data.path}`);
-  
+
   const { data: urlData } = supabase.storage.from('generations').getPublicUrl(path);
+
   return urlData.publicUrl;
 }
 
@@ -68,7 +69,7 @@ export function parseJsonResponse<T>(text: string): T | null {
   try {
     // Remove markdown code blocks if present
     let cleaned = text.trim();
-    
+
     // Handle ```json ... ``` blocks
     if (cleaned.startsWith('```')) {
       const lines = cleaned.split('\n');
@@ -78,13 +79,13 @@ export function parseJsonResponse<T>(text: string): T | null {
       }
       cleaned = lines.join('\n');
     }
-    
+
     // Try to find JSON object or array
     const jsonMatch = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[1]) as T;
     }
-    
+
     // Try direct parse
     return JSON.parse(cleaned) as T;
   } catch (error) {
@@ -103,7 +104,7 @@ export function calculateEstimatedTime(
   totalVariations: number
 ): number {
   let remaining = 0;
-  
+
   switch (stage) {
     case 'pending':
       remaining += ESTIMATED_TIMES.analyzing;
@@ -134,7 +135,7 @@ export function calculateEstimatedTime(
       remaining = 0;
       break;
   }
-  
+
   return remaining;
 }
 
@@ -200,7 +201,7 @@ export async function retryWithBackoff<T>(
   baseDelay: number = 1000
 ): Promise<T> {
   let lastError: Error | null = null;
-  
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await fn();
@@ -211,7 +212,7 @@ export async function retryWithBackoff<T>(
       await sleep(delay);
     }
   }
-  
+
   throw lastError || new Error('All retries exhausted');
 }
 

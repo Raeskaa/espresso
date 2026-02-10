@@ -5,13 +5,15 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PipelineProgress, PipelineProgressData } from "@/components/PipelineProgress";
+import { ShimmerCardGrid } from "@/components/ShimmerCard";
 import { BumblePreview, TinderPreview, HingePreview } from "@/components/dating-preview/PhonePreview";
-import { 
+import {
   ArrowLeft,
   Download,
   Loader2,
   Check,
-  Smartphone
+  Smartphone,
+  Sparkles,
 } from "lucide-react";
 import { getGeneration } from "@/app/actions/generation";
 
@@ -46,7 +48,7 @@ interface Generation {
 export default function GenerationResultPage() {
   const params = useParams();
   const generationId = params.id as string;
-  
+
   const [generation, setGeneration] = useState<Generation | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<number | null>(null);
@@ -63,7 +65,7 @@ export default function GenerationResultPage() {
       const data = await getGeneration(generationId);
       if (data) {
         setGeneration(data as Generation);
-        
+
         if (data.status === 'processing') {
           interval = setInterval(async () => {
             const updated = await getGeneration(generationId);
@@ -115,17 +117,25 @@ export default function GenerationResultPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      <div className="min-h-screen bg-[#FFFEF5] flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative mx-auto w-14 h-14 mb-4">
+            <div className="absolute inset-0 rounded-full bg-[#2D4A3E]/5 animate-ping" />
+            <div className="relative w-full h-full rounded-full bg-[#2D4A3E]/10 flex items-center justify-center">
+              <Sparkles className="w-6 h-6 text-[#2D4A3E]/40 animate-pulse" />
+            </div>
+          </div>
+          <p className="text-sm text-[#2D4A3E]/50">Loading your results...</p>
+        </div>
       </div>
     );
   }
 
   if (!generation) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-[#FFFEF5] flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-500 mb-4">Generation not found</p>
+          <p className="text-[#2D4A3E]/60 mb-4">Generation not found</p>
           <Link href="/dashboard">
             <Button variant="outline">Back to Dashboard</Button>
           </Link>
@@ -135,17 +145,17 @@ export default function GenerationResultPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#FFFEF5]">
       {/* Header */}
-      <header className="border-b border-gray-100">
+      <header className="border-b border-[#2D4A3E]/10">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center gap-2 text-gray-500 hover:text-black transition-colors">
+          <Link href="/dashboard" className="flex items-center gap-2 text-[#2D4A3E]/50 hover:text-[#2D4A3E] transition-colors">
             <ArrowLeft className="w-4 h-4" />
             <span className="text-sm">Back</span>
           </Link>
-          
-          <span className="font-semibold">Results</span>
-          
+
+          <span className="font-semibold text-[#2D4A3E]">Results</span>
+
           <div className="w-16" />
         </div>
       </header>
@@ -154,27 +164,38 @@ export default function GenerationResultPage() {
         {/* Status */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-xl font-semibold">Your variations</h1>
+            <h1 className="text-xl font-semibold text-[#2D4A3E]">Your variations</h1>
             {generation.status === 'completed' && (
-              <span className="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded">
-                Complete
+              <span className="text-xs text-emerald-600 px-2.5 py-1 bg-emerald-50 rounded-full font-medium">
+                ✓ Complete
               </span>
             )}
             {generation.status === 'processing' && (
-              <span className="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded flex items-center gap-1">
+              <span className="text-xs text-[#2D4A3E]/60 px-2.5 py-1 bg-[#2D4A3E]/5 rounded-full flex items-center gap-1.5 font-medium">
                 <Loader2 className="w-3 h-3 animate-spin" />
                 Processing
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-[#2D4A3E]/50">
             {getAppliedFixes().join(' · ')}
           </p>
         </div>
 
         {generation.status === 'processing' ? (
-          <div className="py-8">
+          <div>
+            {/* Pipeline Progress */}
             <PipelineProgress progress={generation.pipelineProgress || null} />
+
+            {/* Shimmer Cards while generating */}
+            <div className="mt-8">
+              <p className="text-xs text-[#2D4A3E]/40 mb-4 text-center">Your variations will appear here as they&apos;re generated</p>
+              <ShimmerCardGrid
+                total={5}
+                revealedUrls={generation.generatedImageUrls}
+                labels={STYLE_NAMES}
+              />
+            </div>
           </div>
         ) : generation.status === 'completed' ? (
           <>
@@ -186,8 +207,10 @@ export default function GenerationResultPage() {
                   <div
                     key={index}
                     className={`
-                      relative aspect-[4/5] rounded-lg overflow-hidden cursor-pointer border-2 transition-all
-                      ${selectedImage === index ? 'border-black' : 'border-transparent hover:border-gray-200'}
+                      relative aspect-[4/5] rounded-xl overflow-hidden cursor-pointer border-2 transition-all duration-200
+                      ${selectedImage === index
+                        ? 'border-[#2D4A3E] shadow-lg shadow-[#2D4A3E]/10'
+                        : 'border-transparent hover:border-[#2D4A3E]/20'}
                     `}
                     onClick={() => setSelectedImage(selectedImage === index ? null : index)}
                   >
@@ -196,15 +219,15 @@ export default function GenerationResultPage() {
                       alt={styleName}
                       className="w-full h-full object-cover"
                     />
-                    
+
                     {/* Style label */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 pt-6">
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3 pt-8">
                       <span className="text-white text-xs font-medium capitalize">{styleName}</span>
                     </div>
 
                     {/* Selected indicator */}
                     {selectedImage === index && (
-                      <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black flex items-center justify-center">
+                      <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#2D4A3E] flex items-center justify-center shadow-md">
                         <Check className="w-3 h-3 text-white" />
                       </div>
                     )}
@@ -215,9 +238,9 @@ export default function GenerationResultPage() {
 
             {/* Selected Image Preview */}
             {selectedImage !== null && (
-              <div className="border border-gray-200 rounded-lg p-6">
+              <div className="border border-[#2D4A3E]/10 rounded-xl p-6 bg-white">
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm font-medium capitalize">
+                  <span className="text-sm font-medium capitalize text-[#2D4A3E]">
                     {generation.variationResults?.[selectedImage]?.style || STYLE_NAMES[selectedImage] || `Variation ${selectedImage + 1}`}
                   </span>
                   <div className="flex gap-2">
@@ -226,6 +249,7 @@ export default function GenerationResultPage() {
                         size="sm"
                         variant={showPhonePreview ? "default" : "outline"}
                         onClick={() => setShowPhonePreview(!showPhonePreview)}
+                        className={showPhonePreview ? "bg-[#2D4A3E]" : ""}
                       >
                         <Smartphone className="w-4 h-4 mr-1" />
                         Preview in App
@@ -241,7 +265,7 @@ export default function GenerationResultPage() {
                     </Button>
                   </div>
                 </div>
-                
+
                 <div className="flex justify-center gap-8">
                   {/* Main image */}
                   <img
@@ -249,7 +273,7 @@ export default function GenerationResultPage() {
                     alt={generation.variationResults?.[selectedImage]?.style || STYLE_NAMES[selectedImage] || `Variation ${selectedImage + 1}`}
                     className="max-h-[500px] rounded-lg"
                   />
-                  
+
                   {/* Phone preview */}
                   {showPhonePreview && isDatingGeneration && (
                     <div className="flex flex-col items-center gap-4">
@@ -257,30 +281,27 @@ export default function GenerationResultPage() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => setSelectedApp('bumble')}
-                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                            selectedApp === 'bumble' ? 'bg-[#FFC629] text-black' : 'bg-gray-100 text-gray-600'
-                          }`}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedApp === 'bumble' ? 'bg-[#FFC629] text-black' : 'bg-gray-100 text-gray-600'
+                            }`}
                         >
                           🐝 Bumble
                         </button>
                         <button
                           onClick={() => setSelectedApp('tinder')}
-                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                            selectedApp === 'tinder' ? 'bg-gradient-to-r from-pink-500 to-orange-400 text-white' : 'bg-gray-100 text-gray-600'
-                          }`}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedApp === 'tinder' ? 'bg-gradient-to-r from-pink-500 to-orange-400 text-white' : 'bg-gray-100 text-gray-600'
+                            }`}
                         >
                           🔥 Tinder
                         </button>
                         <button
                           onClick={() => setSelectedApp('hinge')}
-                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                            selectedApp === 'hinge' ? 'bg-[#5C5C5C] text-white' : 'bg-gray-100 text-gray-600'
-                          }`}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedApp === 'hinge' ? 'bg-[#5C5C5C] text-white' : 'bg-gray-100 text-gray-600'
+                            }`}
                         >
                           💜 Hinge
                         </button>
                       </div>
-                      
+
                       {/* Phone mockup */}
                       {selectedApp === 'bumble' && (
                         <BumblePreview
@@ -319,15 +340,15 @@ export default function GenerationResultPage() {
             {/* Actions */}
             <div className="flex gap-3 mt-8">
               <Link href="/generate">
-                <Button variant="outline">New generation</Button>
+                <Button variant="outline" className="border-[#2D4A3E]/20 text-[#2D4A3E]">New generation</Button>
               </Link>
             </div>
           </>
         ) : (
           <div className="py-24 text-center">
-            <p className="text-gray-600 mb-4">Generation failed</p>
+            <p className="text-[#2D4A3E]/60 mb-4">Generation failed</p>
             <Link href="/generate">
-              <Button>Try again</Button>
+              <Button className="bg-[#2D4A3E]">Try again</Button>
             </Link>
           </div>
         )}

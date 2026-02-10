@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, integer, boolean, pgEnum, jsonb } from 'drizzle-orm/pg-core';
+export { datingPhotoHistory } from './dating-photo-history';
 
 // Enums
 export const subscriptionTierEnum = pgEnum('subscription_tier', ['free', 'starter', 'pro']);

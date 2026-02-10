@@ -1,8 +1,18 @@
 import { currentUser } from "@clerk/nextjs/server";
+import { DatingPhotoHistory } from "@/components/dating-preview/DatingPhotoHistory";
+
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ImageIcon, Loader2, ArrowRight, Calendar } from "lucide-react";
 import { getUserGenerations } from "@/app/actions/generation";
+
+function ShimmerCard() {
+  return (
+    <div className="group aspect-square rounded-xl border border-[#2D4A3E]/10 overflow-hidden relative bg-white animate-pulse">
+      <div className="w-full h-full bg-gradient-to-br from-[#e0e7ef] to-[#f5f7fa]" />
+    </div>
+  );
+}
 
 export default async function HistoryPage() {
   const user = await currentUser();
@@ -10,8 +20,8 @@ export default async function HistoryPage() {
   if (!user) {
     redirect("/sign-in");
   }
-
   const generations = await getUserGenerations();
+
 
   // Group by date
   const groupedByDate = generations.reduce((acc, gen) => {
@@ -24,7 +34,9 @@ export default async function HistoryPage() {
     acc[date].push(gen);
     return acc;
   }, {} as Record<string, typeof generations>);
-  console.log(generations);
+
+  // Add a loading state (simulate for demo, replace with real loading logic)
+  const loading = false; // Set to true while generating
 
   return (
     <div className="p-8">
@@ -36,7 +48,7 @@ export default async function HistoryPage() {
         </p>
       </div>
 
-      {generations.length === 0 ? (
+      {generations.length === 0 && !loading ? (
         <div className="py-16 text-center border border-dashed border-[#2D4A3E]/20 rounded-2xl bg-white">
           <ImageIcon className="w-12 h-12 text-[#2D4A3E]/20 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-[#2D4A3E] mb-2">No generations yet</h3>
@@ -58,57 +70,65 @@ export default async function HistoryPage() {
               </div>
               
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {gens.map((gen) => (
-                  <Link href={`/generation/${gen.id}`} key={gen.id}>
-                    <div className="group aspect-square rounded-xl border border-[#2D4A3E]/10 hover:border-[#2D4A3E]/30 transition-all overflow-hidden relative bg-white hover:shadow-lg">
-                      {gen.generatedImageUrls && gen.generatedImageUrls.length > 0 ? (
-                        <>
-                          <img 
-                            src={gen.generatedImageUrls[0]} 
-                            alt="Generation"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                          <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center">
-                              <ArrowRight className="w-4 h-4 text-[#2D4A3E]" />
+                {loading
+                  ? Array.from({ length: 5 }).map((_, i) => <ShimmerCard key={i} />)
+                  : gens.map((gen) => (
+                      <Link href={`/generation/${gen.id}`} key={gen.id}>
+                        <div className="group aspect-square rounded-xl border border-[#2D4A3E]/10 hover:border-[#2D4A3E]/30 transition-all overflow-hidden relative bg-white hover:shadow-lg">
+                          {gen.generatedImageUrls && gen.generatedImageUrls.length > 0 ? (
+                            <>
+                              <img 
+                                src={gen.generatedImageUrls[0]} 
+                                alt="Generation"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                              <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center">
+                                  <ArrowRight className="w-4 h-4 text-[#2D4A3E]" />
+                                </div>
+                              </div>
+                              
+                              {/* Fixes applied indicator */}
+                              <div className="absolute top-2 left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="px-2 py-1 rounded-full bg-white/90 text-xs font-medium text-[#2D4A3E]">
+                                  {gen.generatedImageUrls?.length || 0} variations
+                                </div>
+                              </div>
+                            </>
+                          ) : gen.status === 'processing' ? (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <div className="text-center">
+                                <Loader2 className="w-6 h-6 text-[#2D4A3E]/40 animate-spin mx-auto mb-2" />
+                                <span className="text-xs text-[#2D4A3E]/50">Processing</span>
+                              </div>
                             </div>
-                          </div>
-                          
-                          {/* Fixes applied indicator */}
-                          <div className="absolute top-2 left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="px-2 py-1 rounded-full bg-white/90 text-xs font-medium text-[#2D4A3E]">
-                              {gen.generatedImageUrls?.length || 0} variations
+                          ) : gen.status === 'failed' ? (
+                            <div className="w-full h-full flex items-center justify-center bg-red-50">
+                              <div className="text-center">
+                                <span className="text-2xl mb-2 block">❌</span>
+                                <span className="text-xs text-red-500">Failed</span>
+                              </div>
                             </div>
-                          </div>
-                        </>
-                      ) : gen.status === 'processing' ? (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <div className="text-center">
-                            <Loader2 className="w-6 h-6 text-[#2D4A3E]/40 animate-spin mx-auto mb-2" />
-                            <span className="text-xs text-[#2D4A3E]/50">Processing</span>
-                          </div>
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <ImageIcon className="w-8 h-8 text-[#2D4A3E]/20" />
+                            </div>
+                          )}
                         </div>
-                      ) : gen.status === 'failed' ? (
-                        <div className="w-full h-full flex items-center justify-center bg-red-50">
-                          <div className="text-center">
-                            <span className="text-2xl mb-2 block">❌</span>
-                            <span className="text-xs text-red-500">Failed</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <ImageIcon className="w-8 h-8 text-[#2D4A3E]/20" />
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-                ))}
+                      </Link>
+                    ))}
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* Dating Photo History Section */}
+      <div className="mt-16">
+        <h2 className="text-xl font-bold text-[#2D4A3E] mb-4">Dating Photo History</h2>
+        <DatingPhotoHistory />
+      </div>
     </div>
   );
 }

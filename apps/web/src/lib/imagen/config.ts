@@ -7,11 +7,11 @@ import type { StyleVariation } from './types';
 export const CONFIG = {
   // Model configuration
   models: {
-    analyzer: 'gemini-3-flash',           // Fast, good at analysis
-    planner: 'gemini-3-flash',            // Fast, good at reasoning
-    editor: 'gemini-3-flash',             // Gemini 3 Flash - image generation
-    critic: 'gemini-3-flash',             // Fast, can compare images
-    stepValidator: 'gemini-3-flash',
+    analyzer: 'gemini-2.5-flash',           // Fast, good at analysis
+    planner: 'gemini-2.5-flash',            // Fast, good at reasoning
+    editor: 'gemini-2.5-flash-image',       // Nano Banana - image generation
+    critic: 'gemini-2.5-flash',             // Fast, can compare images
+    stepValidator: 'gemini-2.5-flash',
   },
   
   // Retry configuration

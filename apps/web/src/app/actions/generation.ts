@@ -1,7 +1,7 @@
 'use server';
 
 import { auth, currentUser } from '@clerk/nextjs/server';
-import { getDb, users, generations, creditTransactions } from '@espresso/db';
+import { getDb, users, generations, creditTransactions, datingPhotoHistory } from '@espresso/db';
 import { eq } from 'drizzle-orm';
 import { createServerClient } from '@/lib/supabase';
 import { generateImageVariations } from '@/lib/imagen';
@@ -20,7 +20,7 @@ function generateId(prefix: string): string {
 // Get or create user in database
 async function getOrCreateUser(clerkUserId: string): Promise<typeof users.$inferSelect> {
   const db = getDb();
-  
+
   // Try to find existing user
   const existingUser = await db.query.users.findFirst({
     where: eq(users.id, clerkUserId),
@@ -50,7 +50,7 @@ export async function createGeneration(
   fixes: FixOptions
 ): Promise<{ success: boolean; generationId?: string; error?: string; creditsRemaining?: number }> {
   const { userId } = await auth();
-  
+
   if (!userId) {
     return { success: false, error: 'Unauthorized' };
   }
@@ -71,7 +71,7 @@ export async function createGeneration(
     // Upload original image to Supabase Storage
     const supabase = createServerClient();
     const imagePath = `originals/${userId}/${generationId}.jpg`;
-    
+
     // Decode base64 and upload
     const imageBuffer = Buffer.from(imageBase64, 'base64');
     const { error: uploadError } = await supabase.storage
@@ -86,7 +86,7 @@ export async function createGeneration(
       // Continue anyway, we'll use a placeholder URL
     }
 
-    const originalImageUrl = uploadError 
+    const originalImageUrl = uploadError
       ? `data:image/jpeg;base64,${imageBase64.substring(0, 100)}...`
       : supabase.storage.from('generations').getPublicUrl(imagePath).data.publicUrl;
 
@@ -135,7 +135,7 @@ export async function createGeneration(
 // Background processing function
 async function processGeneration(generationId: string, imageBase64: string, fixes: FixOptions, userId: string) {
   const db = getDb();
-  
+
   try {
     // Progress callback to save real-time updates to database
     const onProgress = async (progress: PipelineProgress): Promise<void> => {
@@ -182,7 +182,7 @@ async function processGeneration(generationId: string, imageBase64: string, fixe
       .where(eq(generations.id, generationId));
   } catch (error) {
     console.error('Error processing generation:', error);
-    
+
     // Mark as failed
     await db.update(generations)
       .set({
@@ -196,7 +196,7 @@ async function processGeneration(generationId: string, imageBase64: string, fixe
 
 export async function getGeneration(id: string) {
   const { userId } = await auth();
-  
+
   if (!userId) {
     return null;
   }
@@ -225,6 +225,7 @@ export async function getGeneration(id: string) {
       pipelineStage: generation.pipelineStage,
       pipelineProgress: generation.pipelineProgress as PipelineProgress | null,
       variationResults: generation.variationResults as VariationResult[] | null,
+      errorMessage: generation.errorMessage,
       createdAt: generation.createdAt,
     };
   } catch (error) {
@@ -235,7 +236,7 @@ export async function getGeneration(id: string) {
 
 export async function getCredits() {
   const { userId } = await auth();
-  
+
   if (!userId) {
     return 0;
   }
@@ -251,7 +252,7 @@ export async function getCredits() {
 
 export async function getUserGenerations() {
   const { userId } = await auth();
-  
+
   if (!userId) {
     return [];
   }
@@ -260,7 +261,8 @@ export async function getUserGenerations() {
     const db = getDb();
     const userGenerations = await db.query.generations.findMany({
       where: eq(generations.userId, userId),
-      orderBy: (generations, { desc }) => [desc(generations.createdAt)]
+      orderBy: (generations, { desc }) => [desc(generations.createdAt)],
+      limit: 20,
     });
 
     return userGenerations.map(g => ({
@@ -283,7 +285,7 @@ export async function analyzeImage(imageBase64: string): Promise<{
   error?: string;
 }> {
   const { userId } = await auth();
-  
+
   if (!userId) {
     return { success: false, error: 'Not authenticated' };
   }
@@ -293,9 +295,9 @@ export async function analyzeImage(imageBase64: string): Promise<{
     return { success: true, analysis };
   } catch (error) {
     console.error('Error analyzing image:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Analysis failed' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Analysis failed'
     };
   }
 }
@@ -307,7 +309,7 @@ export async function createDatingProfileGeneration(
   targetApp: string
 ): Promise<{ success: boolean; generationId?: string; error?: string; creditsRemaining?: number }> {
   const { userId } = await auth();
-  
+
   if (!userId) {
     return { success: false, error: 'Unauthorized' };
   }
@@ -318,7 +320,7 @@ export async function createDatingProfileGeneration(
 
     // Dating studio costs 5 credits
     const creditCost = 5;
-    
+
     if (user.credits < creditCost) {
       return { success: false, error: `Insufficient credits. Dating Profile Studio requires ${creditCost} credits.` };
     }
@@ -330,11 +332,11 @@ export async function createDatingProfileGeneration(
     // Upload selfies to Supabase Storage
     const supabase = createServerClient();
     const uploadedSelfieUrls: string[] = [];
-    
+
     for (let i = 0; i < selfies.length; i++) {
       const imagePath = `dating/${userId}/${generationId}/selfie_${i}.jpg`;
       const imageBuffer = Buffer.from(selfies[i], 'base64');
-      
+
       const { error: uploadError } = await supabase.storage
         .from('generations')
         .upload(imagePath, imageBuffer, {
@@ -398,15 +400,15 @@ export async function createDatingProfileGeneration(
 
 // Background processing for dating studio
 async function processDatingGeneration(
-  generationId: string, 
-  selfies: string[], 
-  references: string[], 
+  generationId: string,
+  selfies: string[],
+  references: string[],
   targetApp: string,
   userId: string
 ) {
   const db = getDb();
   const supabase = createServerClient();
-  
+
   try {
     // Update progress - analyzing
     await db.update(generations)
@@ -438,22 +440,22 @@ async function processDatingGeneration(
 
     // Use the new dating studio module to generate photos
     console.log('[Dating Generation] Starting with', selfies.length, 'selfies and', references.length, 'references');
-    
+
     const result = await generateDatingProfilePhotos(selfies, references, 4);
-    
+
     console.log('[Dating Generation] Result:', result.imageUrls.length, 'images,', result.errors.length, 'errors');
 
     // Upload generated images to Supabase and get URLs
     const uploadedUrls: string[] = [];
-    
+
     for (let i = 0; i < result.imageUrls.length; i++) {
       const dataUrl = result.imageUrls[i];
       const base64Data = dataUrl.split(',')[1];
-      
+
       if (base64Data) {
         const imagePath = `dating/${userId}/${generationId}/generated_${i}.png`;
         const imageBuffer = Buffer.from(base64Data, 'base64');
-        
+
         const { error: uploadError } = await supabase.storage
           .from('generations')
           .upload(imagePath, imageBuffer, {
@@ -464,13 +466,29 @@ async function processDatingGeneration(
         if (!uploadError) {
           const url = supabase.storage.from('generations').getPublicUrl(imagePath).data.publicUrl;
           uploadedUrls.push(url);
+
+          // Save to dating photo history
+          try {
+            await db.insert(datingPhotoHistory).values({
+              id: generateId('dating_photo'),
+              userId,
+              imageUrl: url,
+              prompt: `Dating Studio - ${targetApp}`,
+              customization: { targetApp } as unknown as Record<string, unknown>,
+              score: 0,
+              approved: 1,
+              createdAt: new Date(),
+            });
+          } catch (historyError) {
+            console.error('[Dating Generation] Failed to save to history:', historyError);
+          }
         } else {
           console.error('Upload error:', uploadError);
           // Still use the data URL as fallback
           uploadedUrls.push(dataUrl);
         }
       }
-      
+
       // Update progress
       await db.update(generations)
         .set({
@@ -495,8 +513,8 @@ async function processDatingGeneration(
           type: 'dating_studio',
           targetApp,
           stage: 'complete',
-          message: uploadedUrls.length > 0 
-            ? `Generated ${uploadedUrls.length} dating profile photos!` 
+          message: uploadedUrls.length > 0
+            ? `Generated ${uploadedUrls.length} dating profile photos!`
             : 'Generation failed',
           progress: 100,
           errors: result.errors,
@@ -507,7 +525,7 @@ async function processDatingGeneration(
 
   } catch (error) {
     console.error('Error processing dating generation:', error);
-    
+
     await db.update(generations)
       .set({
         status: 'failed',
