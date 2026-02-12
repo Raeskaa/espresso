@@ -1,0 +1,10 @@
+.turbo
+node_modules
+.next
+dist
+out
+coverage
+.DS_Store
+.git
+.vscode
+.idea

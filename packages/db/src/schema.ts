@@ -9,7 +9,7 @@ export const generationStatusEnum = pgEnum('generation_status', ['pending', 'pro
 export const users = pgTable('users', {
   id: text('id').primaryKey(), // Clerk user ID
   email: text('email').notNull().unique(),
-  credits: integer('credits').notNull().default(3),
+  credits: integer('credits').notNull().default(100),
   subscriptionTier: subscriptionTierEnum('subscription_tier').default('free'),
   stripeCustomerId: text('stripe_customer_id'),
   stripeSubscriptionId: text('stripe_subscription_id'),

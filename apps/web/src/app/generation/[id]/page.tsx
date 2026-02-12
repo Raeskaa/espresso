@@ -191,9 +191,9 @@ export default function GenerationResultPage() {
             <div className="mt-8">
               <p className="text-xs text-[#2D4A3E]/40 mb-4 text-center">Your variations will appear here as they&apos;re generated</p>
               <ShimmerCardGrid
-                total={5}
+                total={isDatingGeneration ? 4 : 5}
                 revealedUrls={generation.generatedImageUrls}
-                labels={STYLE_NAMES}
+                labels={isDatingGeneration ? ['Variation 1', 'Variation 2', 'Variation 3', 'Variation 4'] : STYLE_NAMES}
               />
             </div>
           </div>

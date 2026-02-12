@@ -3,12 +3,12 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { 
-  Upload, 
-  X, 
-  Eye, 
-  Move, 
-  Sun, 
+import {
+  Upload,
+  X,
+  Eye,
+  Move,
+  Sun,
   Camera,
   Loader2,
   Check,
@@ -53,13 +53,13 @@ const fixOptions: FixOption[] = [
 ];
 
 // Intensity slider component
-function IntensitySlider({ 
-  value, 
-  onChange, 
-  label 
-}: { 
-  value: number; 
-  onChange: (v: number) => void; 
+function IntensitySlider({
+  value,
+  onChange,
+  label
+}: {
+  value: number;
+  onChange: (v: number) => void;
   label: string;
 }) {
   return (
@@ -117,18 +117,18 @@ export default function GeneratePage() {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          
+
           if (width > maxWidth) {
             height = (height * maxWidth) / width;
             width = maxWidth;
           }
-          
+
           canvas.width = width;
           canvas.height = height;
-          
+
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
-          
+
           const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
           resolve(compressedDataUrl);
         };
@@ -159,7 +159,7 @@ export default function GeneratePage() {
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    
+
     const file = e.dataTransfer.files[0];
     if (file) {
       await handleFileChange(file);
@@ -192,10 +192,10 @@ export default function GeneratePage() {
     if (!image || selectedFixes.size === 0) return;
 
     setIsGenerating(true);
-    
+
     try {
       const base64Data = image.split(',')[1];
-      
+
       const fixes = {
         fixEyeContact: selectedFixes.has('fixEyeContact'),
         improvePosture: selectedFixes.has('improvePosture'),
@@ -203,8 +203,8 @@ export default function GeneratePage() {
         enhanceLighting: selectedFixes.has('enhanceLighting'),
       };
 
-      const result = await createGeneration(base64Data, fixes);
-      
+      const result = await createGeneration({ imageBase64: base64Data, fixes });
+
       if (result.success && result.generationId) {
         router.push(`/generation/${result.generationId}`);
       } else {
@@ -238,7 +238,7 @@ export default function GeneratePage() {
         {/* Left: Upload */}
         <div>
           <h2 className="text-sm font-medium text-[#2D4A3E]/60 mb-3">1. Upload photo</h2>
-          
+
           {!image ? (
             <div
               onDrop={handleDrop}
@@ -246,8 +246,8 @@ export default function GeneratePage() {
               onDragLeave={handleDragLeave}
               className={cn(
                 "relative border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all",
-                isDragging 
-                  ? "border-[#2D4A3E] bg-[#2D4A3E]/5" 
+                isDragging
+                  ? "border-[#2D4A3E] bg-[#2D4A3E]/5"
                   : "border-[#2D4A3E]/20 hover:border-[#2D4A3E]/40 bg-white"
               )}
             >
@@ -260,7 +260,7 @@ export default function GeneratePage() {
                 }}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
-              
+
               <div className="w-16 h-16 rounded-2xl bg-[#2D4A3E]/5 flex items-center justify-center mx-auto mb-4">
                 <Upload className="w-8 h-8 text-[#2D4A3E]/40" />
               </div>
@@ -293,7 +293,7 @@ export default function GeneratePage() {
           {/* Analyze button */}
           {image && (
             <button
-              onClick={() => {/* TODO: Analyze */}}
+              onClick={() => {/* TODO: Analyze */ }}
               disabled={isAnalyzing}
               className="w-full mt-4 py-3 px-4 border border-[#2D4A3E]/10 rounded-xl text-sm text-[#2D4A3E]/70 hover:bg-[#2D4A3E]/5 transition-colors flex items-center justify-center gap-2"
             >
@@ -315,40 +315,40 @@ export default function GeneratePage() {
         {/* Right: Fix Selection */}
         <div>
           <h2 className="text-sm font-medium text-[#2D4A3E]/60 mb-3">2. Select fixes</h2>
-          
+
           <div className="space-y-3">
             {fixOptions.map((option) => {
               const isSelected = selectedFixes.has(option.id);
-              
+
               return (
                 <div key={option.id}>
                   <button
                     onClick={() => toggleFix(option.id)}
                     className={cn(
                       "w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4",
-                      isSelected 
-                        ? "border-[#2D4A3E] bg-white shadow-sm" 
+                      isSelected
+                        ? "border-[#2D4A3E] bg-white shadow-sm"
                         : "border-[#2D4A3E]/10 bg-white hover:border-[#2D4A3E]/30"
                     )}
                   >
                     <div className={cn(
                       "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                      isSelected 
-                        ? "bg-[#2D4A3E] text-white" 
+                      isSelected
+                        ? "bg-[#2D4A3E] text-white"
                         : "bg-[#2D4A3E]/5 text-[#2D4A3E]/60"
                     )}>
                       {option.icon}
                     </div>
-                    
+
                     <div className="flex-1">
                       <p className="font-medium text-sm text-[#2D4A3E]">{option.label}</p>
                       <p className="text-xs text-[#2D4A3E]/50">{option.description}</p>
                     </div>
-                    
+
                     <div className={cn(
                       "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
-                      isSelected 
-                        ? "border-[#2D4A3E] bg-[#2D4A3E]" 
+                      isSelected
+                        ? "border-[#2D4A3E] bg-[#2D4A3E]"
                         : "border-[#2D4A3E]/20"
                     )}>
                       {isSelected && <Check className="w-3 h-3 text-white" />}
@@ -385,7 +385,7 @@ export default function GeneratePage() {
                 "Generate 5 variations"
               )}
             </Button>
-            
+
             <p className="text-center text-xs text-[#2D4A3E]/50 mt-3">
               Uses 1 credit · Results in ~30 seconds
             </p>

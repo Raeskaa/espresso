@@ -201,7 +201,7 @@ export default function DatingStudioPage() {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.8));
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
       };
       img.src = dataUrl;
     });
@@ -261,11 +261,11 @@ export default function DatingStudioPage() {
       const referenceData = references.map(r => r.split(',')[1] || r);
 
       // Call server action (returns immediately, processes in background)
-      const result = await createDatingProfileGeneration(
-        selfieData,
-        referenceData,
-        'bumble'
-      );
+      const result = await createDatingProfileGeneration({
+        selfies: selfieData.map(data => ({ data })),
+        references: referenceData.map(data => ({ data })),
+        targetApp: 'bumble'
+      });
 
       if (!result.success || !result.generationId) {
         setError(result.error || 'Failed to start generation');
@@ -297,9 +297,9 @@ export default function DatingStudioPage() {
   const canGenerate = selfies.length >= 1;
 
   return (
-    <div className="h-[calc(100vh-64px)] flex">
+    <div className="flex flex-col md:flex-row md:h-[calc(100vh-64px)] h-auto overflow-y-auto md:overflow-hidden">
       {/* Left Panel - Controls */}
-      <div className="w-80 border-r border-[#2D4A3E]/10 bg-white overflow-y-auto flex-shrink-0">
+      <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-[#2D4A3E]/10 bg-white md:overflow-y-auto flex-shrink-0">
         <div className="p-4 border-b border-[#2D4A3E]/10">
           <h1 className="text-lg font-bold text-[#2D4A3E]">Dating Studio</h1>
           <p className="text-xs text-[#2D4A3E]/60">Create your perfect dating profile</p>
@@ -729,7 +729,7 @@ export default function DatingStudioPage() {
       </div>
 
       {/* Right Panel - Bumble Preview (Full Height) */}
-      <div className="w-[380px] bg-gradient-to-b from-yellow-50 to-yellow-100/50 border-l border-yellow-200/50 flex flex-col flex-shrink-0">
+      <div className="w-full md:w-[380px] bg-gradient-to-b from-yellow-50 to-yellow-100/50 border-t md:border-t-0 md:border-l border-yellow-200/50 flex flex-col flex-shrink-0">
         {/* Bumble Header */}
         <div className="p-3 bg-[#FFC629] sticky top-0 z-10">
           <div className="flex items-center justify-between">

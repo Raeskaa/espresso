@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  LayoutDashboard, 
-  Sparkles, 
+import {
+  LayoutDashboard,
+  Sparkles,
   Heart,
-  History, 
+  History,
   Settings,
   CreditCard,
   Plus,
@@ -56,18 +56,27 @@ const bottomNav: NavItem[] = [
 
 interface SidebarProps {
   credits: number;
+  isMobile?: boolean;
+  onNavigate?: () => void;
 }
 
-export function Sidebar({ credits }: SidebarProps) {
+export function Sidebar({ credits, isMobile, onNavigate }: SidebarProps) {
   const pathname = usePathname();
 
+  const handleNavClick = () => {
+    if (onNavigate) onNavigate();
+  };
+
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-64 bg-[#FFFEF5] border-r border-[#2D4A3E]/10 flex flex-col z-50">
+    <aside className={cn(
+      "w-64 bg-[#FFFEF5] border-r border-[#2D4A3E]/10 flex flex-col z-50",
+      isMobile ? "h-full" : "fixed left-0 top-0 bottom-0"
+    )}>
       {/* Logo */}
       <div className="p-6 border-b border-[#2D4A3E]/10">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <span 
-            className="text-xl font-bold text-[#2D4A3E]" 
+          <span
+            className="text-xl font-bold text-[#2D4A3E]"
             style={{ fontFamily: 'var(--font-display)' }}
           >
             ESPRESSO
@@ -77,7 +86,7 @@ export function Sidebar({ credits }: SidebarProps) {
 
       {/* New Generation Button */}
       <div className="p-4">
-        <Link href="/generate">
+        <Link href="/generate" onClick={handleNavClick}>
           <button className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#2D4A3E] text-white rounded-xl font-medium hover:bg-[#1f352d] transition-colors">
             <Plus className="w-5 h-5" />
             New Generation
@@ -89,17 +98,18 @@ export function Sidebar({ credits }: SidebarProps) {
       <nav className="flex-1 px-3 py-2">
         <div className="space-y-1">
           {mainNav.map((item) => {
-            const isActive = pathname === item.href || 
+            const isActive = pathname === item.href ||
               (item.href !== "/dashboard" && pathname.startsWith(item.href));
-            
+
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={handleNavClick}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-                  isActive 
-                    ? "bg-[#2D4A3E] text-white" 
+                  isActive
+                    ? "bg-[#2D4A3E] text-white"
                     : "text-[#2D4A3E]/70 hover:bg-[#2D4A3E]/5 hover:text-[#2D4A3E]"
                 )}
               >
@@ -138,15 +148,16 @@ export function Sidebar({ credits }: SidebarProps) {
       <div className="px-3 pb-2">
         {bottomNav.map((item) => {
           const isActive = pathname === item.href;
-          
+
           return (
             <Link
               key={item.href}
               href={item.href}
+              onClick={handleNavClick}
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-                isActive 
-                  ? "bg-[#2D4A3E] text-white" 
+                isActive
+                  ? "bg-[#2D4A3E] text-white"
                   : "text-[#2D4A3E]/70 hover:bg-[#2D4A3E]/5 hover:text-[#2D4A3E]"
               )}
             >
@@ -160,7 +171,7 @@ export function Sidebar({ credits }: SidebarProps) {
       {/* User Profile */}
       <div className="p-4 border-t border-[#2D4A3E]/10">
         <div className="flex items-center gap-3">
-          <UserButton 
+          <UserButton
             afterSignOutUrl="/"
             appearance={{
               elements: {

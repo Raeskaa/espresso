@@ -178,13 +178,13 @@ export interface CriticResult {
 // PIPELINE TYPES
 // ============================================================================
 
-export type PipelineStage = 
+export type PipelineStage =
   | 'pending'
-  | 'analyzing' 
-  | 'planning' 
-  | 'generating' 
-  | 'validating' 
-  | 'complete' 
+  | 'analyzing'
+  | 'planning'
+  | 'generating'
+  | 'validating'
+  | 'complete'
   | 'failed';
 
 export interface PipelineProgress {
@@ -283,4 +283,5 @@ export interface GenerateOptions {
   generationId: string;
   analysis?: AnalysisResult;
   onProgress?: (progress: PipelineProgress) => Promise<void>;
+  onVariationGenerated?: (variation: VariationResult) => Promise<void>;
 }

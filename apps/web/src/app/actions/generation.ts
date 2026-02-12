@@ -1,8 +1,9 @@
 'use server';
 
 import { auth, currentUser } from '@clerk/nextjs/server';
+
 import { getDb, users, generations, creditTransactions, datingPhotoHistory } from '@espresso/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { createServerClient } from '@/lib/supabase';
 import { generateImageVariations } from '@/lib/imagen';
 import { analyze } from '@/lib/imagen/analyzer';
@@ -11,6 +12,16 @@ import { generateDatingProfilePhotos } from '@/lib/imagen/dating-studio';
 import type { FixOptions } from '@espresso/utils';
 import type { PipelineProgress, VariationResult, FixSelection } from '@/lib/imagen';
 import type { AnalysisResult } from '@/lib/imagen/types';
+import { waitUntil } from '@vercel/functions';
+
+// Log env var availability at module load (visible in Vercel function logs)
+console.log('[Generation] Module loaded. Env check:', {
+  hasDbUrl: !!process.env.DATABASE_URL,
+  hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+  hasSupabaseKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+  hasClerkKey: !!process.env.CLERK_SECRET_KEY,
+  hasGoogleAiKey: !!process.env.GOOGLE_AI_API_KEY,
+});
 
 // Helper to generate unique IDs
 function generateId(prefix: string): string {
@@ -19,36 +30,83 @@ function generateId(prefix: string): string {
 
 // Get or create user in database
 async function getOrCreateUser(clerkUserId: string): Promise<typeof users.$inferSelect> {
+  console.log('[getOrCreateUser] Called for userId:', clerkUserId);
   const db = getDb();
 
-  // Try to find existing user
+  // Try to find existing user by Clerk ID
   const existingUser = await db.query.users.findFirst({
     where: eq(users.id, clerkUserId),
   });
+  console.log('[getOrCreateUser] Existing user found by ID:', !!existingUser, 'credits:', existingUser?.credits);
 
   if (existingUser) {
+    // Backfill credits for existing users if < 100
+    if ((existingUser.credits ?? 0) < 100) {
+      await db.update(users)
+        .set({ credits: 100 })
+        .where(eq(users.id, clerkUserId));
+      existingUser.credits = 100;
+    }
     return existingUser;
   }
 
   // Get user email from Clerk
   const clerkUser = await currentUser();
   const email = clerkUser?.emailAddresses?.[0]?.emailAddress || `${clerkUserId}@espresso.app`;
+  console.log('[getOrCreateUser] Email from Clerk:', email);
 
-  // Create new user with 3 free credits
+  // Check if a user with same email already exists (Clerk ID may have changed)
+  const existingByEmail = await db.query.users.findFirst({
+    where: eq(users.email, email),
+  });
+
+  if (existingByEmail) {
+    console.log('[getOrCreateUser] Found existing user by email (ID mismatch: DB has', existingByEmail.id, ', Clerk has', clerkUserId, '). Using existing user.');
+    // Backfill credits if needed
+    if ((existingByEmail.credits ?? 0) < 100) {
+      await db.update(users)
+        .set({ credits: 100 })
+        .where(eq(users.id, existingByEmail.id));
+      existingByEmail.credits = 100;
+    }
+    return existingByEmail;
+  }
+
+  // Create new user with 100 free credits (or 1000 for admin)
+  const isSpecialUser = email === 'maheshtripathidec@gmail.com';
+  const initialCredits = isSpecialUser ? 1000 : 100;
+
   const [newUser] = await db.insert(users).values({
     id: clerkUserId,
     email,
-    credits: 3,
+    credits: initialCredits,
     subscriptionTier: 'free',
   }).returning();
 
+  console.log('[getOrCreateUser] Created new user:', newUser.id, 'credits:', newUser.credits);
   return newUser;
 }
 
-export async function createGeneration(
-  imageBase64: string,
-  fixes: FixOptions
-): Promise<{ success: boolean; generationId?: string; error?: string; creditsRemaining?: number }> {
+// Helper to ensure admin has credits (temporary fix for existing user)
+async function ensureAdminCredits(userId: string, currentCredits: number) {
+  const user = await currentUser();
+  const email = user?.emailAddresses?.[0]?.emailAddress;
+
+  if (email === 'maheshtripathidec@gmail.com' && currentCredits < 1000) {
+    const db = getDb();
+    await db.update(users)
+      .set({ credits: 1000 })
+      .where(eq(users.id, userId));
+    return 1000;
+  }
+  return currentCredits;
+}
+
+export async function createGeneration(options: {
+  imageBase64: string;
+  fixes: FixOptions;
+}): Promise<{ success: boolean; generationId?: string; error?: string; creditsRemaining?: number }> {
+  const { imageBase64, fixes } = options;
   const { userId } = await auth();
 
   if (!userId) {
@@ -57,7 +115,10 @@ export async function createGeneration(
 
   try {
     const db = getDb();
-    const user = await getOrCreateUser(userId);
+    let user = await getOrCreateUser(userId);
+
+    // Check and update admin credits if needed
+    user.credits = await ensureAdminCredits(user.id, user.credits);
 
     // Check credits
     if (user.credits <= 0) {
@@ -70,7 +131,7 @@ export async function createGeneration(
 
     // Upload original image to Supabase Storage
     const supabase = createServerClient();
-    const imagePath = `originals/${userId}/${generationId}.jpg`;
+    const imagePath = `originals/${user.id}/${generationId}.jpg`;
 
     // Decode base64 and upload
     const imageBuffer = Buffer.from(imageBase64, 'base64');
@@ -93,7 +154,7 @@ export async function createGeneration(
     // Create generation record
     await db.insert(generations).values({
       id: generationId,
-      userId,
+      userId: user.id,
       originalImageUrl,
       generatedImageUrls: [],
       fixEyeContact: fixes.fixEyeContact,
@@ -107,19 +168,19 @@ export async function createGeneration(
     // Deduct credit
     await db.update(users)
       .set({ credits: user.credits - 1, updatedAt: new Date() })
-      .where(eq(users.id, userId));
+      .where(eq(users.id, user.id));
 
     // Record credit transaction
     await db.insert(creditTransactions).values({
       id: generateId('txn'),
-      userId,
+      userId: user.id,
       amount: -1,
       reason: 'generation',
       generationId,
     });
 
     // Generate images asynchronously (in background)
-    processGeneration(generationId, imageBase64, fixes, userId).catch(console.error);
+    waitUntil(processGeneration(generationId, imageBase64, fixes, user.id).catch(console.error));
 
     return {
       success: true,
@@ -128,7 +189,7 @@ export async function createGeneration(
     };
   } catch (error) {
     console.error('Error creating generation:', error);
-    return { success: false, error: 'Failed to create generation. Please try again.' };
+    return { success: false, error: `Generation failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
@@ -155,7 +216,7 @@ async function processGeneration(generationId: string, imageBase64: string, fixe
       { editType: 'lighting', enabled: fixes.enhanceLighting, template: getDefaultTemplate('lighting') },
     ];
 
-    // Generate image variations using the new agentic pipeline
+    // Generate image variations using the new agentic pipeline with incremental updates
     const result = await generateImageVariations({
       originalImageBase64: imageBase64,
       fixes,
@@ -163,6 +224,17 @@ async function processGeneration(generationId: string, imageBase64: string, fixe
       userId,
       generationId,
       onProgress,
+      onVariationGenerated: async (variation) => {
+        if (variation.success && variation.imageUrl) {
+          // Use concatenation for atomic array append in jsonb
+          await db.update(generations)
+            .set({
+              generatedImageUrls: sql`array_append(COALESCE(generated_image_urls, ARRAY[]::text[]), ${variation.imageUrl})`,
+              variationResults: sql`COALESCE(variation_results, '[]'::jsonb) || ${JSON.stringify([variation])}::jsonb`,
+            })
+            .where(eq(generations.id, generationId));
+        }
+      }
     });
 
     // Extract successful image URLs from variations
@@ -211,6 +283,28 @@ export async function getGeneration(id: string) {
       return null;
     }
 
+    // Check if stale (stuck in processing for > 10 mins)
+    if (generation.status === 'processing' &&
+      Date.now() - new Date(generation.createdAt).getTime() > 10 * 60 * 1000) {
+      console.log('[getGeneration] Marking stale generation as failed:', id);
+      try {
+        await db.update(generations)
+          .set({
+            status: 'failed',
+            pipelineStage: 'failed',
+            errorMessage: 'Generation timed out. Please try again.'
+          })
+          .where(eq(generations.id, id));
+
+        // Update local object for return
+        generation.status = 'failed';
+        generation.pipelineStage = 'failed';
+        generation.errorMessage = 'Generation timed out. Please try again.';
+      } catch (e) {
+        console.error('[getGeneration] Failed to update stale generation:', e);
+      }
+    }
+
     return {
       id: generation.id,
       originalImageUrl: generation.originalImageUrl,
@@ -235,17 +329,21 @@ export async function getGeneration(id: string) {
 }
 
 export async function getCredits() {
+  console.log('[getCredits] Called');
   const { userId } = await auth();
+  console.log('[getCredits] userId:', userId);
 
   if (!userId) {
+    console.log('[getCredits] No userId, returning 0');
     return 0;
   }
 
   try {
     const user = await getOrCreateUser(userId);
+    console.log('[getCredits] User credits:', user.credits);
     return user.credits;
   } catch (error) {
-    console.error('Error getting credits:', error);
+    console.error('[getCredits] Error getting credits:', error);
     return 0;
   }
 }
@@ -303,11 +401,14 @@ export async function analyzeImage(imageBase64: string): Promise<{
 }
 
 // Dating Studio generation
-export async function createDatingProfileGeneration(
-  selfies: string[], // Array of base64 images
-  references: string[], // Array of base64 reference images
-  targetApp: string
-): Promise<{ success: boolean; generationId?: string; error?: string; creditsRemaining?: number }> {
+export async function createDatingProfileGeneration(options: {
+  selfies: { data: string }[];
+  references: { data: string }[];
+  targetApp: string;
+}): Promise<{ success: boolean; generationId?: string; error?: string; creditsRemaining?: number }> {
+  const { selfies: wrappedSelfies, references: wrappedReferences, targetApp } = options;
+  const selfies = wrappedSelfies.map(s => s.data);
+  const references = wrappedReferences.map(r => r.data);
   const { userId } = await auth();
 
   if (!userId) {
@@ -315,13 +416,20 @@ export async function createDatingProfileGeneration(
   }
 
   try {
+    console.log('[createDatingProfileGeneration] Starting...');
     const db = getDb();
-    const user = await getOrCreateUser(userId);
+    let user = await getOrCreateUser(userId);
+    console.log('[createDatingProfileGeneration] User found, credits:', user.credits);
+
+    // Check and update admin credits if needed
+    user.credits = await ensureAdminCredits(user.id, user.credits);
+    console.log('[createDatingProfileGeneration] After admin check, credits:', user.credits);
 
     // Dating studio costs 5 credits
     const creditCost = 5;
 
     if (user.credits < creditCost) {
+      console.log('[createDatingProfileGeneration] Insufficient credits:', user.credits, '<', creditCost);
       return { success: false, error: `Insufficient credits. Dating Profile Studio requires ${creditCost} credits.` };
     }
 
@@ -334,7 +442,7 @@ export async function createDatingProfileGeneration(
     const uploadedSelfieUrls: string[] = [];
 
     for (let i = 0; i < selfies.length; i++) {
-      const imagePath = `dating/${userId}/${generationId}/selfie_${i}.jpg`;
+      const imagePath = `dating/${user.id}/${generationId}/selfie_${i}.jpg`;
       const imageBuffer = Buffer.from(selfies[i], 'base64');
 
       const { error: uploadError } = await supabase.storage
@@ -353,7 +461,7 @@ export async function createDatingProfileGeneration(
     // Create generation record
     await db.insert(generations).values({
       id: generationId,
-      userId,
+      userId: user.id,
       originalImageUrl: uploadedSelfieUrls[0] || '',
       generatedImageUrls: [],
       status: 'processing',
@@ -373,19 +481,19 @@ export async function createDatingProfileGeneration(
     // Deduct credits
     await db.update(users)
       .set({ credits: user.credits - creditCost, updatedAt: new Date() })
-      .where(eq(users.id, userId));
+      .where(eq(users.id, user.id));
 
     // Record credit transaction
     await db.insert(creditTransactions).values({
       id: generateId('txn'),
-      userId,
+      userId: user.id,
       amount: -creditCost,
       reason: 'dating_studio',
       generationId,
     });
 
     // Process in background
-    processDatingGeneration(generationId, selfies, references, targetApp, userId).catch(console.error);
+    waitUntil(processDatingGeneration(generationId, selfies, references, targetApp, userId).catch(console.error));
 
     return {
       success: true,
@@ -394,7 +502,7 @@ export async function createDatingProfileGeneration(
     };
   } catch (error) {
     console.error('Error creating dating profile generation:', error);
-    return { success: false, error: 'Failed to create generation. Please try again.' };
+    return { success: false, error: `Dating generation failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
@@ -438,75 +546,90 @@ async function processDatingGeneration(
       })
       .where(eq(generations.id, generationId));
 
-    // Use the new dating studio module to generate photos
+    // Use the new dating studio module to generate photos with incremental updates
     console.log('[Dating Generation] Starting with', selfies.length, 'selfies and', references.length, 'references');
 
-    const result = await generateDatingProfilePhotos(selfies, references, 4);
-
-    console.log('[Dating Generation] Result:', result.imageUrls.length, 'images,', result.errors.length, 'errors');
-
-    // Upload generated images to Supabase and get URLs
     const uploadedUrls: string[] = [];
 
-    for (let i = 0; i < result.imageUrls.length; i++) {
-      const dataUrl = result.imageUrls[i];
-      const base64Data = dataUrl.split(',')[1];
+    const result = await generateDatingProfilePhotos(
+      selfies,
+      references,
+      5,
+      async (dataUrl, i) => {
+        const base64Data = dataUrl.split(',')[1];
+        if (!base64Data) return;
 
-      if (base64Data) {
-        const imagePath = `dating/${userId}/${generationId}/generated_${i}.png`;
-        const imageBuffer = Buffer.from(base64Data, 'base64');
+        console.log(`[Dating Generation] Processing photo ${i + 1} incrementally...`);
 
-        const { error: uploadError } = await supabase.storage
-          .from('generations')
-          .upload(imagePath, imageBuffer, {
-            contentType: 'image/png',
-            upsert: true,
-          });
+        try {
+          const imagePath = `dating/${userId}/${generationId}/generated_${i}.png`;
+          const imageBuffer = Buffer.from(base64Data, 'base64');
 
-        if (!uploadError) {
-          const url = supabase.storage.from('generations').getPublicUrl(imagePath).data.publicUrl;
+          const { error: uploadError } = await supabase.storage
+            .from('generations')
+            .upload(imagePath, imageBuffer, {
+              contentType: 'image/png',
+              upsert: true,
+            });
+
+          let url: string;
+          if (!uploadError) {
+            url = supabase.storage.from('generations').getPublicUrl(imagePath).data.publicUrl;
+
+            // Save to dating photo history
+            try {
+              await db.insert(datingPhotoHistory).values({
+                id: generateId('dating_photo'),
+                userId,
+                imageUrl: url,
+                prompt: `Dating Studio - ${targetApp}`,
+                customization: { targetApp } as unknown as Record<string, unknown>,
+                score: 0,
+                approved: 1,
+                createdAt: new Date(),
+              });
+            } catch (historyError) {
+              console.error('[Dating Generation] Failed to save to history:', historyError);
+            }
+          } else {
+            console.error('Upload error:', uploadError);
+            return; // Skip this photo if upload fails, avoiding data URL in DB
+          }
+
           uploadedUrls.push(url);
 
-          // Save to dating photo history
-          try {
-            await db.insert(datingPhotoHistory).values({
-              id: generateId('dating_photo'),
-              userId,
-              imageUrl: url,
-              prompt: `Dating Studio - ${targetApp}`,
-              customization: { targetApp } as unknown as Record<string, unknown>,
-              score: 0,
-              approved: 1,
-              createdAt: new Date(),
-            });
-          } catch (historyError) {
-            console.error('[Dating Generation] Failed to save to history:', historyError);
-          }
-        } else {
-          console.error('Upload error:', uploadError);
-          // Still use the data URL as fallback
-          uploadedUrls.push(dataUrl);
+          // Update generation record INCREMENTALLY using concatenation
+          await db.update(generations)
+            .set({
+              generatedImageUrls: sql`array_append(COALESCE(generated_image_urls, ARRAY[]::text[]), ${url})`,
+              variationResults: sql`COALESCE(variation_results, '[]'::jsonb) || ${JSON.stringify([{
+                index: i,
+                style: `Photo ${i + 1}`,
+                success: true,
+                imageUrl: url,
+              }])}::jsonb`,
+              pipelineProgress: {
+                type: 'dating_studio',
+                targetApp,
+                stage: 'generating',
+                message: `Generated ${uploadedUrls.length} photos...`,
+                progress: 30 + (uploadedUrls.length / 5) * 60,
+              } as unknown as Record<string, unknown>,
+            })
+            .where(eq(generations.id, generationId));
+
+        } catch (error) {
+          console.error(`[Dating Generation] Increment update error for photo ${i + 1}:`, error);
         }
       }
+    );
 
-      // Update progress
-      await db.update(generations)
-        .set({
-          pipelineProgress: {
-            type: 'dating_studio',
-            targetApp,
-            stage: 'generating',
-            message: `Generated ${i + 1}/${result.imageUrls.length} photos...`,
-            progress: 30 + ((i + 1) / result.imageUrls.length) * 60,
-          } as unknown as Record<string, unknown>,
-        })
-        .where(eq(generations.id, generationId));
-    }
+    console.log('[Dating Generation] Batch complete. Total uploaded:', uploadedUrls.length);
 
-    // Update generation with results
+    // Update generation with final results and status
     await db.update(generations)
       .set({
-        generatedImageUrls: uploadedUrls,
+        // Note: generatedImageUrls is already updated incrementally
         pipelineStage: uploadedUrls.length > 0 ? 'complete' : 'failed',
         status: uploadedUrls.length > 0 ? 'completed' : 'failed',
         pipelineProgress: {

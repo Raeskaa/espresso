@@ -14,9 +14,9 @@ import { validateStep } from './critic';
 import { uploadToSupabase, createProgress, generateFallbackUrl } from './utils';
 import { CONFIG, VARIATION_PROFILES } from './config';
 import { getDefaultTemplate } from './templates';
-import type { 
-  GenerateOptions, 
-  GenerationResult, 
+import type {
+  GenerateOptions,
+  GenerationResult,
   VariationResult,
   PipelineProgress,
   AnalysisResult,
@@ -32,9 +32,9 @@ import type {
 export async function generateImageVariations(
   options: GenerateOptions
 ): Promise<GenerationResult> {
-  const { originalImageBase64, fixes, fixSelections, userId, generationId, onProgress, analysis: analysisOverride } = options;
+  const { originalImageBase64, fixes, fixSelections, userId, generationId, onProgress, onVariationGenerated, analysis: analysisOverride } = options;
   const startTime = Date.now();
-  
+
   console.log('='.repeat(60));
   console.log('[Pipeline] Starting Espresso Image Generation');
   console.log('[Pipeline] Generation ID:', generationId);
@@ -49,9 +49,9 @@ export async function generateImageVariations(
     // STAGE 1: ANALYZE
     // ========================================================================
     await updateProgress(onProgress, 'analyzing', 'Analyzing your photo...', 0);
-    
+
     analysis = analysisOverride || await analyze(originalImageBase64);
-    
+
     await updateProgress(onProgress, 'analyzing', 'Analysis complete', 100);
     console.log('[Pipeline] Analysis complete');
 
@@ -71,7 +71,8 @@ export async function generateImageVariations(
       selectionList,
       analysis,
       userId,
-      onProgress
+      onProgress,
+      onVariationGenerated
     );
 
     // ========================================================================
@@ -81,7 +82,7 @@ export async function generateImageVariations(
 
     const totalTime = Date.now() - startTime;
     const successCount = variations.filter(v => v.success).length;
-    
+
     console.log('='.repeat(60));
     console.log(`[Pipeline] Complete in ${totalTime}ms`);
     console.log(`[Pipeline] ${successCount}/${variations.length} variations successful`);
@@ -97,7 +98,7 @@ export async function generateImageVariations(
 
   } catch (error) {
     console.error('[Pipeline] Fatal error:', error);
-    
+
     await updateProgress(onProgress, 'failed', 'Generation failed', 0);
 
     return {
@@ -127,7 +128,8 @@ async function generateSequentialVariations(
   fixSelections: FixSelection[],
   analysis: AnalysisResult,
   userId: string,
-  onProgress?: (progress: PipelineProgress) => Promise<void>
+  onProgress?: (progress: PipelineProgress) => Promise<void>,
+  onVariationGenerated?: (variation: VariationResult) => Promise<void>
 ): Promise<VariationResult[]> {
   const enabledFixes = fixSelections
     .filter((fix) => fix.enabled)
@@ -154,8 +156,9 @@ async function generateSequentialVariations(
 
   const results: VariationResult[] = [];
   for (const pipeline of pipelines) {
+    let variation: VariationResult;
     if (!pipeline.success || !pipeline.finalImageBase64) {
-      results.push({
+      variation = {
         index: pipeline.id,
         style: 'sequential',
         success: false,
@@ -163,19 +166,25 @@ async function generateSequentialVariations(
         attempts: pipeline.steps.reduce((sum, step) => sum + step.attempts, 0),
         fallback: true,
         error: 'Sequential pipeline failed',
-      });
-      continue;
+      };
+    } else {
+      const imageUrl = await uploadToSupabase(pipeline.finalImageBase64, userId, pipeline.id);
+      variation = {
+        index: pipeline.id,
+        style: pipeline.steps.map((step) => step.editType).join('+') || 'sequential',
+        success: true,
+        imageUrl,
+        attempts: pipeline.steps.reduce((sum, step) => sum + step.attempts, 0),
+        fallback: false,
+      };
     }
 
-    const imageUrl = await uploadToSupabase(pipeline.finalImageBase64, userId, pipeline.id);
-    results.push({
-      index: pipeline.id,
-      style: pipeline.steps.map((step) => step.editType).join('+') || 'sequential',
-      success: true,
-      imageUrl,
-      attempts: pipeline.steps.reduce((sum, step) => sum + step.attempts, 0),
-      fallback: false,
-    });
+    results.push(variation);
+
+    // Call callback immediately after individual variation is ready
+    if (onVariationGenerated) {
+      await onVariationGenerated(variation);
+    }
   }
 
   return results;
@@ -282,7 +291,7 @@ async function updateProgress(
   totalVariations: number = 5
 ): Promise<void> {
   if (!onProgress) return;
-  
+
   const progress = createProgress(
     stage,
     message,
@@ -290,7 +299,7 @@ async function updateProgress(
     totalVariations,
     stageProgress
   );
-  
+
   await onProgress(progress);
 }
 
