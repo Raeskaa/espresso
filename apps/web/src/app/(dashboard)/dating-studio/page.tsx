@@ -103,6 +103,8 @@ export default function DatingStudioPage() {
   const [profileTone, setProfileTone] = useState<ProfileTone>('witty');
   const [profileType, setProfileType] = useState<ProfileType>('relationship');
   const [bio, setBio] = useState('');
+  const [profileName, setProfileName] = useState('');
+  const [profileAge, setProfileAge] = useState<number>(25);
   const [prompts, setPrompts] = useState<BumblePrompt[]>([
     { question: BUMBLE_QUESTIONS[0], answer: '' },
     { question: BUMBLE_QUESTIONS[3], answer: '' },
@@ -161,7 +163,7 @@ export default function DatingStudioPage() {
           const photos: GeneratedPhoto[] = data.generatedImageUrls.map((url, i) => ({
             url,
             prompt: `Photo ${i + 1}`,
-            score: 85 + Math.floor(Math.random() * 10),
+            score: Math.max(80, 95 - i * 2), // Ordered best-first by the AI pipeline
             approved: true,
           }));
           setGeneratedPhotos(photos);
@@ -175,6 +177,11 @@ export default function DatingStudioPage() {
       }
     } catch (err) {
       console.error('Polling error:', err);
+      // Stop polling on repeated errors to avoid infinite loop
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      pollingRef.current = null;
+      setIsGenerating(false);
+      setError('Connection error. Please refresh and check your history.');
     }
   }, []);
 
@@ -549,6 +556,32 @@ export default function DatingStudioPage() {
                 </div>
               </div>
 
+              {/* Name & Age */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-medium text-[#2D4A3E]/70 mb-1 block">Your Name</label>
+                  <input
+                    type="text"
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    placeholder="e.g. Alex"
+                    className="w-full p-2 text-xs rounded-lg border border-[#2D4A3E]/20 focus:border-[#2D4A3E]/40 focus:outline-none"
+                    maxLength={30}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-[#2D4A3E]/70 mb-1 block">Age</label>
+                  <input
+                    type="number"
+                    value={profileAge}
+                    onChange={(e) => setProfileAge(Math.max(18, Math.min(99, parseInt(e.target.value) || 18)))}
+                    min={18}
+                    max={99}
+                    className="w-full p-2 text-xs rounded-lg border border-[#2D4A3E]/20 focus:border-[#2D4A3E]/40 focus:outline-none"
+                  />
+                </div>
+              </div>
+
               {/* Bio */}
               <div>
                 <label className="text-sm font-medium text-[#2D4A3E] mb-2 block">
@@ -695,7 +728,7 @@ export default function DatingStudioPage() {
                     )}
                     <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
                       <span className="px-2 py-1 rounded-full bg-black/50 text-white text-xs">
-                        Score: {photo.score}
+                        Photo {index + 1}/{generatedPhotos.length}
                       </span>
                       <button
                         className="p-1.5 rounded-full bg-black/50 hover:bg-black/70"
@@ -781,7 +814,7 @@ export default function DatingStudioPage() {
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 pt-16">
               <div className="flex items-end justify-between">
                 <div>
-                  <h3 className="text-2xl font-bold text-white">Your Name, 28</h3>
+                  <h3 className="text-2xl font-bold text-white">{profileName || 'Your Name'}, {profileAge}</h3>
                   <p className="text-sm text-white/80 flex items-center gap-1">
                     <MapPin className="w-3 h-3" /> 2 miles away
                   </p>

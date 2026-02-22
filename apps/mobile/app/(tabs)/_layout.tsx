@@ -1,59 +1,63 @@
 import React from 'react';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Link, Tabs } from 'expo-router';
-import { Pressable } from 'react-native';
+import { Tabs } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
-}) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
+function TabIcon({ name, color }: { name: IoniconName; color: string }) {
+  return <Ionicons name={name} size={22} color={color} />;
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const tint = '#2D4A3E';
+  const inactive = '#9CA3AF';
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
-      }}>
+        tabBarActiveTintColor: tint,
+        tabBarInactiveTintColor: inactive,
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopColor: 'rgba(45,74,62,0.1)',
+          height: 60,
+          paddingBottom: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+        },
+        headerStyle: { backgroundColor: '#F5F0E8' },
+        headerTintColor: tint,
+        headerTitleStyle: { fontWeight: '700' },
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Tab One',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <Pressable>
-                {({ pressed }) => (
-                  <FontAwesome
-                    name="info-circle"
-                    size={25}
-                    color={Colors[colorScheme ?? 'light'].text}
-                    style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
-          ),
+          title: 'Home',
+          tabBarIcon: ({ color }) => <TabIcon name="home" color={color} />,
+          headerTitle: 'Espresso ☕',
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="gallery"
         options={{
-          title: 'Tab Two',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+          title: 'Gallery',
+          tabBarIcon: ({ color }) => <TabIcon name="images" color={color} />,
+          headerTitle: 'My Photos',
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color }) => <TabIcon name="person" color={color} />,
+          headerTitle: 'Profile',
         }}
       />
     </Tabs>
   );
 }
+
+

@@ -4,7 +4,7 @@
  * Format a number as credits display
  */
 export function formatCredits(credits: number): string {
-  return `${credits} credit${credits === 1 ? '' : 's'}`;
+  return `${credits} credit${credits === 1 ? "" : "s"}`;
 }
 
 /**
@@ -33,7 +33,7 @@ export interface User {
   id: string;
   email: string;
   credits: number;
-  subscriptionTier: 'free' | 'starter' | 'pro' | null;
+  subscriptionTier: "free" | "starter" | "pro" | null;
   createdAt: Date;
 }
 
@@ -43,7 +43,7 @@ export interface Generation {
   originalImageUrl: string;
   generatedImageUrls: string[];
   fixes: FixOptions;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: "pending" | "processing" | "completed" | "failed";
   createdAt: Date;
   expiresAt: Date;
 }
@@ -57,7 +57,7 @@ export interface FixOptions {
 
 // Constants
 export const CREDITS_PER_GENERATION = 1;
-export const FREE_CREDITS = 3;
+export const FREE_CREDITS = 100;
 export const STARTER_CREDITS = 50;
 export const PRO_MONTHLY_CREDITS = 200;
 export const IMAGE_RETENTION_DAYS = 7;

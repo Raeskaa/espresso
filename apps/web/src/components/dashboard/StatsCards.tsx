@@ -5,6 +5,7 @@ import { Sparkles, TrendingUp, CreditCard, Clock } from "lucide-react";
 interface StatsCardsProps {
   totalGenerations: number;
   thisWeek: number;
+  lastWeek: number;
   credits: number;
   avgTime?: string;
 }
@@ -12,9 +13,15 @@ interface StatsCardsProps {
 export function StatsCards({ 
   totalGenerations, 
   thisWeek, 
+  lastWeek,
   credits,
   avgTime = "<30s" 
 }: StatsCardsProps) {
+  // Real trend: percentage change vs last week
+  const weekTrend = lastWeek === 0
+    ? (thisWeek > 0 ? '+new' : undefined)
+    : thisWeek === lastWeek ? undefined
+    : `${thisWeek > lastWeek ? '+' : ''}${Math.round(((thisWeek - lastWeek) / lastWeek) * 100)}%`;
   const stats = [
     {
       label: "Total Generations",
@@ -27,7 +34,7 @@ export function StatsCards({
       value: thisWeek.toString(),
       icon: <TrendingUp className="w-5 h-5" />,
       color: "bg-[#7EA3DC]/20 text-[#2D4A3E]",
-      trend: thisWeek > 0 ? "+12%" : undefined,
+      trend: weekTrend,
     },
     {
       label: "Credits Left",

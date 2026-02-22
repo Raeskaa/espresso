@@ -13,11 +13,18 @@ export default async function DashboardPage() {
   const credits = await getCredits();
   const generations = await getUserGenerations();
   
-  // Calculate this week's generations
+  // Calculate this week's and last week's generations
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  const twoWeeksAgo = new Date();
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
   const thisWeekGenerations = generations.filter(
     (g) => new Date(g.createdAt) > oneWeekAgo
+  ).length;
+
+  const lastWeekGenerations = generations.filter(
+    (g) => new Date(g.createdAt) > twoWeeksAgo && new Date(g.createdAt) <= oneWeekAgo
   ).length;
 
   return (
@@ -37,6 +44,7 @@ export default async function DashboardPage() {
         <StatsCards 
           totalGenerations={generations.length}
           thisWeek={thisWeekGenerations}
+          lastWeek={lastWeekGenerations}
           credits={credits}
         />
       </div>

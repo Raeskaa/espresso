@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { createGeneration, analyzeImage } from "@/app/actions/generation";
 import { cn } from "@/lib/utils";
+import { AnalysisPreview } from "@/components/AnalysisPreview";
 
 interface FixOption {
   id: string;
@@ -107,6 +108,7 @@ export default function GeneratePage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<Awaited<ReturnType<typeof analyzeImage>>['analysis'] | null>(null);
 
   const compressImage = (file: File, maxWidth: number = 800, quality: number = 0.8): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -222,6 +224,35 @@ export default function GeneratePage() {
     setImage(null);
     setFileName("");
     setSelectedFixes(new Set());
+    setAnalysisResult(null);
+  };
+
+  const handleAnalyze = async () => {
+    if (!image) return;
+    setIsAnalyzing(true);
+    setAnalysisResult(null);
+    try {
+      const base64 = image.split(',')[1];
+      const result = await analyzeImage(base64);
+      if (result.success && result.analysis) {
+        setAnalysisResult(result.analysis);
+        // Auto-select fixes based on detected issues
+        const autoFixes = new Set(selectedFixes);
+        const issues = result.analysis.issuesDetected;
+        if (issues.eyeContact.present) autoFixes.add('fixEyeContact');
+        if (issues.posture.present) autoFixes.add('improvePosture');
+        if (issues.angle.present) autoFixes.add('adjustAngle');
+        if (issues.lighting.present) autoFixes.add('enhanceLighting');
+        setSelectedFixes(autoFixes);
+      } else {
+        alert(result.error || 'Analysis failed. Please try again.');
+      }
+    } catch (err) {
+      console.error('Analyze error:', err);
+      alert('Analysis failed. Please try again.');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   return (
@@ -293,7 +324,7 @@ export default function GeneratePage() {
           {/* Analyze button */}
           {image && (
             <button
-              onClick={() => {/* TODO: Analyze */ }}
+              onClick={handleAnalyze}
               disabled={isAnalyzing}
               className="w-full mt-4 py-3 px-4 border border-[#2D4A3E]/10 rounded-xl text-sm text-[#2D4A3E]/70 hover:bg-[#2D4A3E]/5 transition-colors flex items-center justify-center gap-2"
             >
@@ -309,6 +340,17 @@ export default function GeneratePage() {
                 </>
               )}
             </button>
+          )}
+
+          {/* Analysis results */}
+          {analysisResult && (
+            <div className="mt-4">
+              <AnalysisPreview
+                analysis={analysisResult}
+                selectedFixes={selectedFixes}
+                onToggleFix={toggleFix}
+              />
+            </div>
           )}
         </div>
 
