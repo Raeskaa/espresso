@@ -35,6 +35,8 @@ export default async function SettingsPage() {
         {/* Tab 0 — Profile */}
         <div className="bg-white rounded-2xl border border-[#2D4A3E]/10 overflow-hidden">
           <UserProfile
+            path="/settings"
+            routing="path"
             appearance={{
               elements: {
                 rootBox: "w-full",
