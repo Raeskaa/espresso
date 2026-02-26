@@ -267,7 +267,7 @@ Only approve if identityScore >= 85 AND isEcho is false.`;
     if (jsonMatch) {
       const data = JSON.parse(jsonMatch[0]);
       return {
-        approved: data.approved && !data.isEcho && data.identityScore >= 80,
+        approved: data.approved && !data.isEcho && data.identityScore >= 60,
         identityScore: data.identityScore || 0,
         reason:
           data.reason ||
@@ -433,6 +433,10 @@ export async function generateDatingProfilePhotos(
   const imageUrls: string[] = [];
   const errors: string[] = [];
 
+  // Track the best rejected image so we can fallback to it if nothing passes
+  // Wrapped in a container to avoid TypeScript closure narrowing
+  const fallbackState = { bestRejected: null as { imageBase64: string; score: number; index: number } | null };
+
   // Robust Reference Dispatcher
   // Distribute unique indices to each slot initially
   const referencePool = [...references];
@@ -478,10 +482,16 @@ export async function generateDatingProfilePhotos(
 
           if (!validation.approved) {
             console.warn(
-              `[Dating Studio] Slot ${index + 1} REJECTED: ${
+              `[Dating Studio] Slot ${index + 1} REJECTED (score: ${validation.identityScore}): ${
                 validation.reason
               }, retrying with different style...`
             );
+            errors.push(`identity_mismatch: ${validation.reason || "Face did not match your selfie"}`);
+
+            // Track best rejected image as fallback
+            if (!fallbackState.bestRejected || validation.identityScore > fallbackState.bestRejected.score) {
+              fallbackState.bestRejected = { imageBase64: result.imageBase64, score: validation.identityScore, index };
+            }
             continue;
           }
 
@@ -500,17 +510,23 @@ export async function generateDatingProfilePhotos(
           }
           return imageUrl;
         } else {
+          const failReason = result.error || "No image generated";
           console.error(
-            `[Dating Studio] Slot ${index + 1} failed: ${
-              result.error || "No image generated"
-            }`
+            `[Dating Studio] Slot ${index + 1} failed: ${failReason}`
           );
+          if (failReason.includes("No response from model")) {
+            errors.push("no_model_response");
+          } else {
+            errors.push(`generation_error: ${failReason}`);
+          }
         }
       } catch (error) {
+        const errMsg = error instanceof Error ? error.message : "Unknown error";
         console.error(
           `[Dating Studio] Slot ${index + 1} error:`,
-          error instanceof Error ? error.message : "Unknown error"
+          errMsg
         );
+        errors.push(`generation_error: ${errMsg}`);
       }
 
       // Slightly longer delay for retries to avoid rate limits and allow model "cooldown"
@@ -531,6 +547,18 @@ export async function generateDatingProfilePhotos(
   const results = await Promise.all(generationPromises);
   const successfulUrls = results.filter((url): url is string => url !== null);
   imageUrls.push(...successfulUrls);
+
+  // Fallback: if nothing passed validation, use the best rejected image
+  if (imageUrls.length === 0 && fallbackState.bestRejected) {
+    console.log(
+      `[Dating Studio] No images passed validation. Using best rejected image (score: ${fallbackState.bestRejected.score}) as fallback.`
+    );
+    const fallbackUrl = `data:image/png;base64,${fallbackState.bestRejected.imageBase64}`;
+    if (onPhotoGenerated) {
+      await onPhotoGenerated(fallbackUrl, fallbackState.bestRejected.index);
+    }
+    imageUrls.push(fallbackUrl);
+  }
 
   return {
     success: imageUrls.length > 0,

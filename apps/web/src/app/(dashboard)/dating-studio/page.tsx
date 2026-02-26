@@ -15,7 +15,9 @@ import {
   Camera,
   Shirt,
   MapPin,
-  Sun
+  Sun,
+  AlertTriangle,
+  Lightbulb
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -619,9 +621,43 @@ export default function DatingStudioPage() {
               </>
             )}
           </Button>
-          {error && (
-            <p className="mt-2 text-xs text-red-500 text-center">{error}</p>
-          )}
+          {error && (() => {
+            // Try to parse structured error with tips
+            let parsed: { headline: string; tips: string[] } | null = null;
+            try {
+              parsed = JSON.parse(error);
+            } catch {
+              // Not JSON, use as plain text
+            }
+
+            if (parsed && parsed.tips && parsed.tips.length > 0) {
+              return (
+                <div className="mt-3 p-3 rounded-xl bg-red-50 border border-red-100">
+                  <div className="flex items-start gap-2 mb-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs font-medium text-red-700">{parsed.headline}</p>
+                  </div>
+                  <div className="space-y-1.5 ml-6">
+                    {parsed.tips.map((tip, i) => (
+                      <div key={i} className="flex items-start gap-1.5">
+                        <Lightbulb className="w-3 h-3 text-amber-500 mt-0.5 flex-shrink-0" />
+                        <p className="text-[11px] text-red-600/80">{tip}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => { setError(null); handleGenerate(); }}
+                    className="mt-2.5 ml-6 flex items-center gap-1.5 text-[11px] font-medium text-[#2D4A3E] hover:text-[#1a2d24] transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Try Again
+                  </button>
+                </div>
+              );
+            }
+
+            return <p className="mt-2 text-xs text-red-500 text-center">{error}</p>;
+          })()}
         </div>
       </div>
 
@@ -654,43 +690,83 @@ export default function DatingStudioPage() {
               </div>
             </div>
           ) : generatedPhotos.length === 0 ? (
-            /* Empty State */
+            /* Empty State OR Failed Generation */
             <div className="flex flex-col items-center justify-center h-full text-center py-20">
-              <div className="w-24 h-24 rounded-full bg-[#2D4A3E]/10 flex items-center justify-center mb-4">
-                <Camera className="w-10 h-10 text-[#2D4A3E]/40" />
-              </div>
-              <h2 className="text-xl font-semibold text-[#2D4A3E] mb-2">
-                Ready to create your perfect profile?
-              </h2>
-              <p className="text-sm text-[#2D4A3E]/60 max-w-md mb-6">
-                Upload your photos, customize the style, and we&apos;ll generate
-                stunning dating profile photos that look authentically you.
-              </p>
-              {selfies.length === 0 && (
-                <label className="px-6 py-3 rounded-xl bg-[#2D4A3E] text-white text-sm font-medium cursor-pointer hover:bg-[#1a2d24] transition-colors">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => handleFileUpload(e.target.files, 'selfies')}
-                    className="hidden"
-                  />
-                  Upload Your Photos
-                </label>
-              )}
-              {selfies.length > 0 && (
-                <div className="space-y-4">
-                  <p className="text-sm text-green-600 font-medium">
-                    ✓ {selfies.length} photo{selfies.length > 1 ? 's' : ''} uploaded
+              {error ? (() => {
+                let parsed: { headline: string; tips: string[] } | null = null;
+                try { parsed = JSON.parse(error); } catch { /* plain text */ }
+
+                return (
+                  <div className="max-w-md w-full">
+                    <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4 mx-auto">
+                      <AlertTriangle className="w-8 h-8 text-red-400" />
+                    </div>
+                    <h2 className="text-xl font-semibold text-[#2D4A3E] mb-2">
+                      {parsed?.headline || "Generation failed"}
+                    </h2>
+                    {parsed?.tips && parsed.tips.length > 0 ? (
+                      <div className="text-left bg-white rounded-2xl border border-[#2D4A3E]/10 p-5 mt-4 space-y-3">
+                        <p className="text-xs font-medium text-[#2D4A3E]/70 uppercase tracking-wide">
+                          💡 Tips to get better results
+                        </p>
+                        {parsed.tips.map((tip, i) => (
+                          <div key={i} className="flex items-start gap-2">
+                            <span className="text-amber-500 mt-0.5 text-sm">•</span>
+                            <p className="text-sm text-[#2D4A3E]/80">{tip}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[#2D4A3E]/60 mb-4">{error}</p>
+                    )}
+                    <Button
+                      onClick={() => { setError(null); handleGenerate(); }}
+                      className="mt-6 bg-[#2D4A3E] hover:bg-[#1a2d24]"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Try Again
+                    </Button>
+                  </div>
+                );
+              })() : (
+                <>
+                  <div className="w-24 h-24 rounded-full bg-[#2D4A3E]/10 flex items-center justify-center mb-4">
+                    <Camera className="w-10 h-10 text-[#2D4A3E]/40" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-[#2D4A3E] mb-2">
+                    Ready to create your perfect profile?
+                  </h2>
+                  <p className="text-sm text-[#2D4A3E]/60 max-w-md mb-6">
+                    Upload your photos, customize the style, and we&apos;ll generate
+                    stunning dating profile photos that look authentically you.
                   </p>
-                  <Button
-                    onClick={handleGenerate}
-                    className="bg-[#2D4A3E] hover:bg-[#1a2d24]"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Generate Photos
-                  </Button>
-                </div>
+                  {selfies.length === 0 && (
+                    <label className="px-6 py-3 rounded-xl bg-[#2D4A3E] text-white text-sm font-medium cursor-pointer hover:bg-[#1a2d24] transition-colors">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => handleFileUpload(e.target.files, 'selfies')}
+                        className="hidden"
+                      />
+                      Upload Your Photos
+                    </label>
+                  )}
+                  {selfies.length > 0 && (
+                    <div className="space-y-4">
+                      <p className="text-sm text-green-600 font-medium">
+                        ✓ {selfies.length} photo{selfies.length > 1 ? 's' : ''} uploaded
+                      </p>
+                      <Button
+                        onClick={handleGenerate}
+                        className="bg-[#2D4A3E] hover:bg-[#1a2d24]"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Generate Photos
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ) : (

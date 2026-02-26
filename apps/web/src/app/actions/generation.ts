@@ -639,6 +639,45 @@ export async function createDatingProfileGeneration(options: {
   }
 }
 
+// Build user-friendly error message from categorized errors
+function buildUserFriendlyError(errors: string[]): string {
+  const identityErrors = errors.filter((e) => e.startsWith("identity_mismatch"));
+  const noResponseErrors = errors.filter((e) => e === "no_model_response");
+  const otherErrors = errors.filter(
+    (e) => !e.startsWith("identity_mismatch") && e !== "no_model_response"
+  );
+
+  const tips: string[] = [];
+  let headline = "We couldn't generate your photos this time.";
+
+  if (identityErrors.length > 0 && identityErrors.length >= noResponseErrors.length) {
+    headline = "The AI had trouble preserving your look in the generated photos.";
+    tips.push(
+      "Use a clear, well-lit selfie where your face is fully visible — avoid sunglasses, hats, or heavy shadows.",
+      "Try a front-facing selfie with a simple background for best results.",
+      "If using reference/inspiration photos, pick ones with a different person so the AI doesn't get confused.",
+      "Adding 2–3 selfies from different angles helps the AI understand your face better."
+    );
+  } else if (noResponseErrors.length > 0) {
+    headline = "The AI model was too busy to process your request.";
+    tips.push(
+      "This is temporary — try again in a minute or two.",
+      "Reducing the number of reference images can help speed things up.",
+      "Make sure your photos are under 5 MB each for smoother processing."
+    );
+  } else if (otherErrors.length > 0) {
+    headline = "Something went wrong during photo generation.";
+    tips.push(
+      "Try again — sometimes the AI needs a second attempt.",
+      "Check that your photos are clear JPEG/PNG images.",
+      "If the issue persists, try uploading different selfies."
+    );
+  }
+
+  // Return as a JSON string so the UI can parse and render it nicely
+  return JSON.stringify({ headline, tips });
+}
+
 // Background processing for dating studio
 async function processDatingGeneration(
   generationId: string,
@@ -807,7 +846,7 @@ async function processDatingGeneration(
         errorMessage:
           uploadedUrls.length > 0
             ? null
-            : result.errors.join(", ") || "No photos could be generated",
+            : buildUserFriendlyError(result.errors),
       })
       .where(eq(generations.id, generationId));
   } catch (error) {
